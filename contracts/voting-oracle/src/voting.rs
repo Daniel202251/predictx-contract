@@ -76,7 +76,115 @@ pub fn cast_vote(
     voters.push_back(voter.clone());
     storage::write_voters(env, poll_id, &voters);
     storage::write_voted(env, poll_id, &voter);
+    // Persist the choice itself (not just the count) so reward eligibility can
+    // be checked against the resolved outcome later.
+    storage::write_vote_choice(env, poll_id, &voter, choice);
     Ok(tally)
+}
+
+/// Set (fund) the voter reward reserve for `poll_id`.
+///
+/// Admin-only. The reserve *size* policy is out of scope; this just records the
+/// amount that eligible voters will share.
+pub fn set_reward_pool(
+    env: &Env,
+    caller: Address,
+    poll_id: u64,
+    amount: i128,
+) -> Result<(), PredictXError> {
+    storage::require_admin(env, &caller)?;
+    caller.require_auth();
+
+    if amount < 0 {
+        return Err(PredictXError::InvalidRewardAmount);
+    }
+    if !env
+        .storage()
+        .persistent()
+        .has(&DataKey::PollStatus(poll_id))
+    {
+        return Err(PredictXError::PollNotFound);
+    }
+
+    storage::write_reward_pool(env, poll_id, amount);
+    Ok(())
+}
+
+/// Claim the caller's voter reward for a resolved poll.
+///
+/// Only voters who backed the winning outcome are eligible: a voter on the
+/// losing side, an `Unclear` voter, or a non-voter is rejected with
+/// [`PredictXError::VoterNotEligible`]. The reward reserve is split evenly
+/// across the *eligible* voters (never the total voter count), and each voter
+/// may claim at most once.
+pub fn claim_reward(env: &Env, voter: Address, poll_id: u64) -> Result<i128, PredictXError> {
+    voter.require_auth();
+
+    if !env
+        .storage()
+        .persistent()
+        .has(&DataKey::PollStatus(poll_id))
+    {
+        return Err(PredictXError::PollNotFound);
+    }
+
+    // Rewards only open once the poll has a resolved, decisive outcome.
+    let outcome: VoteChoice = env
+        .storage()
+        .persistent()
+        .get(&DataKey::PollOutcome(poll_id))
+        .ok_or(PredictXError::OutcomeNotAvailable)?;
+    if outcome == VoteChoice::Unclear {
+        return Err(PredictXError::OutcomeNotAvailable);
+    }
+
+    if storage::has_claimed_reward(env, poll_id, &voter) {
+        return Err(PredictXError::AlreadyClaimed);
+    }
+
+    // The claimant must have voted, and must have backed the winning side.
+    let choice =
+        storage::read_vote_choice(env, poll_id, &voter).ok_or(PredictXError::VoterNotEligible)?;
+    if choice != outcome {
+        return Err(PredictXError::VoterNotEligible);
+    }
+
+    let eligible = eligible_voter_count(env, poll_id, outcome);
+    if eligible == 0 {
+        return Err(PredictXError::VoterNotEligible);
+    }
+
+    let pool = storage::read_reward_pool(env, poll_id);
+    let share = if pool > 0 {
+        pool / i128::from(eligible)
+    } else {
+        0
+    };
+
+    storage::write_reward_claimed(env, poll_id, &voter);
+    env.storage()
+        .persistent()
+        .set(&DataKey::VoterReward(poll_id, voter.clone()), &share);
+
+    env.events()
+        .publish((Symbol::new(env, "RewardClaimed"), poll_id, voter), share);
+
+    Ok(share)
+}
+
+/// Count the voters on `poll_id` whose recorded choice equals `outcome`.
+///
+/// Bounded by `MAX_VOTERS`, so a full roster scan is cheap.
+fn eligible_voter_count(env: &Env, poll_id: u64, outcome: VoteChoice) -> u32 {
+    let voters = storage::read_voters(env, poll_id);
+    let mut count = 0_u32;
+    for i in 0..voters.len() {
+        let voter = voters.get(i).unwrap();
+        if storage::read_vote_choice(env, poll_id, &voter) == Some(outcome) {
+            count += 1;
+        }
+    }
+    count
 }
 
 /// Resolve a voting poll when the winning outcome reaches the automatic
@@ -484,5 +592,93 @@ mod test {
     #[test]
     fn consensus_bps_tie_favours_yes() {
         assert_eq!(super::consensus_bps(&tally(10, 10, 3)), (true, 5_000));
+    }
+
+    // ── Voter rewards (#105) ──────────────────────────────────────────────────
+
+    /// Fund poll 1 and resolve it to `Yes` (30 Yes / 5 No == 85.7% consensus).
+    fn fund_and_resolve_yes(env: &Env, client: &VotingOracleClient, admin: &Address, pool: i128) {
+        client.set_reward_pool(admin, &1_u64, &pool);
+        env.ledger().set_timestamp(1_000_000 + VOTING_WINDOW_SECS);
+        assert_eq!(client.auto_resolve(&1_u64), VoteChoice::Yes);
+    }
+
+    #[test]
+    fn majority_voter_claims_share_divided_by_eligible_count() {
+        let (env, admin, client) = setup();
+        let winner = voter(&env);
+        client.cast_vote(&winner, &1_u64, &VoteChoice::Yes);
+        for _ in 0..29 {
+            client.cast_vote(&voter(&env), &1_u64, &VoteChoice::Yes);
+        }
+        for _ in 0..5 {
+            client.cast_vote(&voter(&env), &1_u64, &VoteChoice::No);
+        }
+        fund_and_resolve_yes(&env, &client, &admin, 300);
+
+        // 300 shared across the 30 eligible (winning) voters, not 300/35.
+        assert_eq!(client.claim_reward(&winner, &1_u64), 10);
+        assert!(client.has_claimed_reward(&1_u64, &winner));
+    }
+
+    #[test]
+    fn minority_voter_cannot_claim() {
+        let (env, admin, client) = setup();
+        let loser = voter(&env);
+        client.cast_vote(&loser, &1_u64, &VoteChoice::No);
+        for _ in 0..30 {
+            client.cast_vote(&voter(&env), &1_u64, &VoteChoice::Yes);
+        }
+        fund_and_resolve_yes(&env, &client, &admin, 300);
+
+        let err = client
+            .try_claim_reward(&loser, &1_u64)
+            .expect_err("a losing-side voter must not be paid");
+
+        assert_eq!(err, Ok(PredictXError::VoterNotEligible));
+        assert!(!client.has_claimed_reward(&1_u64, &loser));
+    }
+
+    #[test]
+    fn unclear_voter_cannot_claim() {
+        let (env, admin, client) = setup();
+        let unclear = voter(&env);
+        client.cast_vote(&unclear, &1_u64, &VoteChoice::Unclear);
+        for _ in 0..30 {
+            client.cast_vote(&voter(&env), &1_u64, &VoteChoice::Yes);
+        }
+        fund_and_resolve_yes(&env, &client, &admin, 300);
+
+        let err = client
+            .try_claim_reward(&unclear, &1_u64)
+            .expect_err("an Unclear voter must not be paid");
+
+        assert_eq!(err, Ok(PredictXError::VoterNotEligible));
+    }
+
+    #[test]
+    fn claim_rejected_before_resolution_and_on_double_claim() {
+        let (env, admin, client) = setup();
+        let winner = voter(&env);
+        client.cast_vote(&winner, &1_u64, &VoteChoice::Yes);
+        for _ in 0..29 {
+            client.cast_vote(&voter(&env), &1_u64, &VoteChoice::Yes);
+        }
+        client.set_reward_pool(&admin, &1_u64, &300);
+
+        // No resolved outcome yet.
+        let early = client
+            .try_claim_reward(&winner, &1_u64)
+            .expect_err("claims must wait for a resolved outcome");
+        assert_eq!(early, Ok(PredictXError::OutcomeNotAvailable));
+
+        env.ledger().set_timestamp(1_000_000 + VOTING_WINDOW_SECS);
+        client.auto_resolve(&1_u64);
+        client.claim_reward(&winner, &1_u64);
+
+        let twice = client
+            .try_claim_reward(&winner, &1_u64)
+            .expect_err("a second claim must be rejected");
+        assert_eq!(twice, Ok(PredictXError::AlreadyClaimed));
     }
 }
