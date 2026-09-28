@@ -206,6 +206,14 @@ pub fn calculate_winnings(
         return Ok(0);
     }
 
+    let losing_pool = if outcome { poll.no_pool } else { poll.yes_pool };
+    if losing_pool <= 0 {
+        // No-contest: nothing was staked on the losing side, so there is no
+        // pot to skim a platform fee from. Every winner is refunded their exact
+        // stake rather than a fee-discounted share of a one-sided pool.
+        return Ok(stake.amount);
+    }
+
     let total_pool = poll.yes_pool + poll.no_pool;
     let payout_pool = total_pool
         * (BPS_DENOMINATOR - token_utils::get_platform_fee_bps(env)) as i128
@@ -528,5 +536,32 @@ mod test {
             .try_claim_winnings(&user, &poll_id)
             .expect_err("second claim should fail");
         assert_eq!(err, Ok(PredictXError::AlreadyClaimed));
+    }
+
+    #[test]
+    fn one_sided_poll_refunds_the_winner_at_par() {
+        let s = setup();
+        let poll_id = create_poll(&s, 2_000_000);
+        let winner = stake_user(&s, poll_id, StakeSide::Yes, 100_000_000);
+        s.client.resolve_poll(&s.admin, &poll_id, &true);
+
+        let claimed = s.client.claim_winnings(&winner, &poll_id);
+
+        // No losing side, so no fee may be taken: the stake comes back whole.
+        assert_eq!(claimed, 100_000_000);
+        let token_client = token::Client::new(&s.env, &s.token_addr);
+        assert_eq!(token_client.balance(&winner), 100_000_000);
+    }
+
+    #[test]
+    fn one_sided_poll_no_side_also_refunds_at_par() {
+        let s = setup();
+        let poll_id = create_poll(&s, 2_000_000);
+        let winner = stake_user(&s, poll_id, StakeSide::No, 50_000_000);
+        s.client.resolve_poll(&s.admin, &poll_id, &false);
+
+        // The quote and the claim must agree, both fee-free.
+        assert_eq!(s.client.calculate_winnings(&poll_id, &winner), 50_000_000);
+        assert_eq!(s.client.claim_winnings(&winner, &poll_id), 50_000_000);
     }
 }
