@@ -1,5 +1,5 @@
 use crate::DataKey;
-use predictx_shared::{PredictXError, VoteTally};
+use predictx_shared::{PredictXError, VoteChoice, VoteTally};
 use soroban_sdk::{Address, Env, Vec};
 
 // ── Admin registry storage ────────────────────────────────────────────────────
@@ -83,4 +83,54 @@ pub fn write_voted(env: &Env, poll_id: u64, voter: &Address) {
     env.storage()
         .temporary()
         .set(&DataKey::HasVoted(poll_id, voter.clone()), &true);
+}
+
+// ── Voter reward storage ──────────────────────────────────────────────────────
+
+/// The choice `voter` recorded on `poll_id`, if they voted.
+pub fn read_vote_choice(env: &Env, poll_id: u64, voter: &Address) -> Option<VoteChoice> {
+    env.storage()
+        .persistent()
+        .get(&DataKey::VoterChoice(poll_id, voter.clone()))
+}
+
+/// Persist the choice `voter` recorded on `poll_id`.
+///
+/// Stored in *persistent* storage (unlike the temporary tally and dedup marker)
+/// because the choice must outlive the voting window so eligible voters can
+/// still be identified when rewards are claimed.
+pub fn write_vote_choice(env: &Env, poll_id: u64, voter: &Address, choice: VoteChoice) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::VoterChoice(poll_id, voter.clone()), &choice);
+}
+
+/// The voter reward reserve for `poll_id` (0 when unset).
+pub fn read_reward_pool(env: &Env, poll_id: u64) -> i128 {
+    env.storage()
+        .persistent()
+        .get(&DataKey::RewardPool(poll_id))
+        .unwrap_or(0)
+}
+
+/// Persist the voter reward reserve for `poll_id`.
+pub fn write_reward_pool(env: &Env, poll_id: u64, amount: i128) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::RewardPool(poll_id), &amount);
+}
+
+/// Whether `voter` has already claimed their reward on `poll_id`.
+pub fn has_claimed_reward(env: &Env, poll_id: u64, voter: &Address) -> bool {
+    env.storage()
+        .persistent()
+        .get(&DataKey::RewardClaimed(poll_id, voter.clone()))
+        .unwrap_or(false)
+}
+
+/// Record that `voter` claimed their reward on `poll_id`.
+pub fn write_reward_claimed(env: &Env, poll_id: u64, voter: &Address) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::RewardClaimed(poll_id, voter.clone()), &true);
 }

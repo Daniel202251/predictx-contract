@@ -38,6 +38,14 @@ enum DataKey {
     Voters(u64),
     /// `(poll_id, voter)` → `bool` — has this voter cast a vote? (Temporary)
     HasVoted(u64, Address),
+    /// `(poll_id, voter)` → the choice the voter recorded. (Persistent)
+    VoterChoice(u64, Address),
+    /// `poll_id` → voter reward reserve (unclaimed incentive pool). (Persistent)
+    RewardPool(u64),
+    /// `(poll_id, voter)` → `i128` reward paid to an eligible voter. (Persistent)
+    VoterReward(u64, Address),
+    /// `(poll_id, voter)` → `bool` — has the voter claimed their reward? (Persistent)
+    RewardClaimed(u64, Address),
 }
 
 fn get_admin(env: &Env) -> Result<Address, PredictXError> {
@@ -246,6 +254,43 @@ impl VotingOracle {
             .persistent()
             .get(&DataKey::PollOutcome(poll_id))
             .ok_or(PredictXError::PollNotFound)
+    }
+
+    /// Set (fund) the voter reward reserve for `poll_id`. Admin only.
+    ///
+    /// The policy for how large the reserve should be is deliberately out of
+    /// scope here; this only records the amount that `claim_reward` divides
+    /// among the eligible (winning) voters.
+    pub fn set_reward_pool(
+        env: Env,
+        caller: Address,
+        poll_id: u64,
+        amount: i128,
+    ) -> Result<(), PredictXError> {
+        voting::set_reward_pool(&env, caller, poll_id, amount)
+    }
+
+    /// Claim the caller's voter reward for `poll_id`.
+    ///
+    /// Only voters who backed the resolved winning outcome may claim; the pool
+    /// is split evenly across those eligible voters.
+    pub fn claim_reward(env: Env, voter: Address, poll_id: u64) -> Result<i128, PredictXError> {
+        voting::claim_reward(&env, voter, poll_id)
+    }
+
+    /// The choice `voter` recorded on `poll_id`, if they voted.
+    pub fn get_voter_choice(env: Env, poll_id: u64, voter: Address) -> Option<VoteChoice> {
+        storage::read_vote_choice(&env, poll_id, &voter)
+    }
+
+    /// The voter reward reserve set for `poll_id` (0 when unset).
+    pub fn get_reward_pool(env: Env, poll_id: u64) -> i128 {
+        storage::read_reward_pool(&env, poll_id)
+    }
+
+    /// Whether `voter` has already claimed their `poll_id` reward.
+    pub fn has_claimed_reward(env: Env, poll_id: u64, voter: Address) -> bool {
+        storage::has_claimed_reward(&env, poll_id, &voter)
     }
 }
 
