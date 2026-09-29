@@ -1,7 +1,6 @@
 #![no_std]
 
 mod matches;
-mod payouts;
 mod staking;
 pub(crate) mod token_utils;
 
@@ -52,7 +51,6 @@ pub enum DataKey {
     // ── poll & staking keys ───────────────────────────────────────────────────
     Poll(u64),
     UserStakes(Address),
-    UserStakesPaged(Address),
     HasStaked(u64, Address),
 }
 

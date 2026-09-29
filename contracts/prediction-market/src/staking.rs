@@ -128,11 +128,17 @@ pub fn get_stake_info(env: &Env, poll_id: u64, user: &Address) -> Result<Stake, 
         .ok_or(PredictXError::NotStaker)
 }
 
+/// Maximum number of poll IDs returned by a single paged query.
+pub const MAX_USER_STAKES_PAGE_SIZE: u32 = 50;
+
 /// List all poll IDs a user has staked on.
 ///
-/// DEPRECATED: This function returns an unbounded `Vec` and will eventually
-/// exceed the resource limit for active users. Use [`get_user_stakes_paged`]
-/// instead for a bounded, paginated view.
+/// # Deprecated
+///
+/// This function returns an unbounded `Vec` and will eventually fail once a
+/// user has staked on enough polls to exceed the ledger entry / resource
+/// limits. Prefer [`get_user_stakes_paged`] for any UI or integration code.
+/// Kept for backwards compatibility only.
 pub fn get_user_stakes(env: &Env, user: &Address) -> Vec<u64> {
     env.storage()
         .persistent()
@@ -140,40 +146,47 @@ pub fn get_user_stakes(env: &Env, user: &Address) -> Vec<u64> {
         .unwrap_or(Vec::new(env))
 }
 
-/// Maximum number of poll IDs returned by a single page.
-pub const MAX_USER_STAKES_PAGE_SIZE: u32 = 50;
-
-/// List poll IDs a user has staked on, in insertion order, paginated.
+/// List a bounded page of poll IDs a user has staked on.
 ///
-/// Returns at most `MAX_USER_STAKES_PAGE_SIZE` ids starting at `start`.
-/// `limit` is capped at `MAX_USER_STAKES_PAGE_SIZE`. Returns an empty
-/// vector when the user has no stakes or `start` is past the end.
-pub fn get_user_stakes_paged(env: &Env, user: &Address, start: u32, limit: u32) -> Vec<u64> {
+/// Returns the same ids, in the same insertion order, as
+/// [`get_user_stakes`], but only the slice `[start, start + limit)`.
+/// `limit` is capped at [`MAX_USER_STAKES_PAGE_SIZE`]; a `limit` of `0`
+/// returns an empty vector. If `start` is past the end of the list, an
+/// empty vector is returned. A user with no stakes always returns an
+/// empty vector.
+pub fn get_user_stakes_paged(
+    env: &Env,
+    user: &Address,
+    start: u32,
+    limit: u32,
+) -> Vec<u64> {
     let all: Vec<u64> = env
         .storage()
         .persistent()
         .get(&DataKey::UserStakes(user.clone()))
         .unwrap_or(Vec::new(env));
 
-    let capped_limit = if limit > MAX_USER_STAKES_PAGE_SIZE {
+    let total = all.len();
+    let mut out: Vec<u64> = Vec::new(env);
+
+    if limit == 0 || start >= total {
+        return out;
+    }
+
+    let capped = if limit > MAX_USER_STAKES_PAGE_SIZE {
         MAX_USER_STAKES_PAGE_SIZE
     } else {
         limit
     };
 
-    let total = all.len();
-    let mut page: Vec<u64> = Vec::new(env);
-    if start >= total || capped_limit == 0 {
-        return page;
-    }
-
-    let end = core::cmp::min(start.saturating_add(capped_limit), total);
+    let end = core::cmp::min(start.saturating_add(capped), total);
     let mut i = start;
     while i < end {
-        page.push_back(all.get(i).unwrap());
+        out.push_back(all.get(i).unwrap());
         i += 1;
     }
-    page
+
+    out
 }
 
 /// Check whether a user has already staked on a given poll.
@@ -584,28 +597,40 @@ mod test {
     }
 
     #[test]
-    fn get_user_stakes_paged_returns_same_order_as_unbounded() {
+    fn get_user_stakes_paged_matches_unbounded_order() {
         let s = setup();
         let user = Address::generate(&s.env);
         let amount: i128 = 50_000_000;
-        let count: u32 = 5;
-        mint_tokens(&s, &user, amount * count as i128);
+        let n: u32 = 5;
+        mint_tokens(&s, &user, amount * (n as i128));
 
         let mut expected: soroban_sdk::Vec<u64> = soroban_sdk::Vec::new(&s.env);
-        for _ in 0..count {
+        for _ in 0..n {
             let poll_id = create_test_poll(&s, 2_000_000);
             s.client.stake(&user, &poll_id, &amount, &StakeSide::Yes);
             expected.push_back(poll_id);
         }
 
-        let all = s.client.get_user_stakes(&user);
-        assert_eq!(all.len(), count);
+        let full = s.client.get_user_stakes(&user);
+        assert_eq!(full.len(), n);
 
-        let page = s.client.get_user_stakes_paged(&user, &0_u32, &10_u32);
-        assert_eq!(page.len(), count);
-        for i in 0..count {
-            assert_eq!(page.get(i).unwrap(), expected.get(i).unwrap());
-            assert_eq!(page.get(i).unwrap(), all.get(i).unwrap());
+        // Page through in chunks of 2 and confirm identical order.
+        let mut collected: soroban_sdk::Vec<u64> = soroban_sdk::Vec::new(&s.env);
+        let mut start: u32 = 0;
+        loop {
+            let page = s.client.get_user_stakes_paged(&user, &start, &2_u32);
+            if page.len() == 0 {
+                break;
+            }
+            for i in 0..page.len() {
+                collected.push_back(page.get(i).unwrap());
+            }
+            start += page.len();
+        }
+
+        assert_eq!(collected.len(), full.len());
+        for i in 0..full.len() {
+            assert_eq!(collected.get(i).unwrap(), full.get(i).unwrap());
         }
     }
 
@@ -614,21 +639,17 @@ mod test {
         let s = setup();
         let user = Address::generate(&s.env);
         let amount: i128 = 50_000_000;
-        let count: u32 = 5;
-        mint_tokens(&s, &user, amount * count as i128);
+        let n: u32 = 60;
+        mint_tokens(&s, &user, amount * (n as i128));
 
-        for _ in 0..count {
+        for _ in 0..n {
             let poll_id = create_test_poll(&s, 2_000_000);
             s.client.stake(&user, &poll_id, &amount, &StakeSide::Yes);
         }
 
-        // Request more than the cap; should be capped.
-        let page = s.client.get_user_stakes_paged(&user, &0_u32, &u32::MAX);
-        assert_eq!(page.len(), count);
-
-        // Requesting a limit above the cap on a large set returns at most the cap.
-        let page2 = s.client.get_user_stakes_paged(&user, &0_u32, &1000_u32);
-        assert!(page2.len() <= crate::staking::MAX_USER_STAKES_PAGE_SIZE);
+        // Request far more than the cap; result must be capped.
+        let page = s.client.get_user_stakes_paged(&user, &0_u32, &10_000_u32);
+        assert_eq!(page.len(), crate::staking::MAX_USER_STAKES_PAGE_SIZE);
     }
 
     #[test]
@@ -649,36 +670,37 @@ mod test {
         let s = setup();
         let user = Address::generate(&s.env);
         let amount: i128 = 50_000_000;
-        let count: u32 = 120;
-        mint_tokens(&s, &user, amount * count as i128);
+        let n: u32 = 120;
+        mint_tokens(&s, &user, amount * (n as i128));
 
-        for _ in 0..count {
+        for _ in 0..n {
             let poll_id = create_test_poll(&s, 2_000_000);
             s.client.stake(&user, &poll_id, &amount, &StakeSide::Yes);
         }
 
-        // Unbounded view returns all 120.
-        let all = s.client.get_user_stakes(&user);
-        assert_eq!(all.len(), count);
+        // The unbounded view still works here (test env), but the paged
+        // view must never return more than the cap per call.
+        let full = s.client.get_user_stakes(&user);
+        assert_eq!(full.len(), n);
 
-        // Paged view returns bounded pages that reconstruct the full list.
-        let mut collected: soroban_sdk::Vec<u64> = soroban_sdk::Vec::new(&s.env);
+        let mut seen: u32 = 0;
         let mut start: u32 = 0;
         loop {
-            let page = s.client.get_user_stakes_paged(&user, &start, &u32::MAX);
+            let page = s.client.get_user_stakes_paged(&user, &start, &10_000_u32);
             assert!(page.len() <= crate::staking::MAX_USER_STAKES_PAGE_SIZE);
             if page.len() == 0 {
                 break;
             }
+            // Each id in the page must match the unbounded view at the
+            // same absolute index.
             for i in 0..page.len() {
-                collected.push_back(page.get(i).unwrap());
+                let abs = start + i;
+                assert_eq!(page.get(i).unwrap(), full.get(abs).unwrap());
             }
+            seen += page.len();
             start += page.len();
         }
-        assert_eq!(collected.len(), count);
-        for i in 0..count {
-            assert_eq!(collected.get(i).unwrap(), all.get(i).unwrap());
-        }
+        assert_eq!(seen, n);
     }
 
     #[test]
