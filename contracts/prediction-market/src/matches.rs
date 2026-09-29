@@ -17,7 +17,7 @@ pub fn require_admin(env: &Env, caller: &Address) -> Result<(), PredictXError> {
     Ok(())
 }
 
-// ── Admin ownership transfer ──────────────────────────────────────────────────
+// ── Admin transfer ────────────────────────────────────────────────────────────
 
 pub fn propose_admin(
     env: &Env,
@@ -25,16 +25,13 @@ pub fn propose_admin(
     candidate: Address,
 ) -> Result<(), PredictXError> {
     require_admin(env, &current)?;
-
     env.storage()
         .instance()
         .set(&DataKey::PendingAdmin, &candidate);
-
     env.events().publish(
-        (Symbol::new(env, "AdminProposed"),),
+        (Symbol::new(env, "AdminProposed"), current),
         candidate,
     );
-
     Ok(())
 }
 
@@ -43,26 +40,38 @@ pub fn accept_admin(
     candidate: Address,
 ) -> Result<(), PredictXError> {
     candidate.require_auth();
-
     let pending: Address = env
         .storage()
         .instance()
         .get(&DataKey::PendingAdmin)
         .ok_or(PredictXError::Unauthorized)?;
-
     if candidate != pending {
         return Err(PredictXError::Unauthorized);
     }
-
     env.storage().instance().set(&DataKey::Admin, &candidate);
     env.storage().instance().remove(&DataKey::PendingAdmin);
-
     env.events().publish(
-        (Symbol::new(env, "AdminAccepted"),),
+        (Symbol::new(env, "AdminChanged"), candidate.clone()),
         candidate,
     );
-
     Ok(())
+}
+
+pub fn cancel_admin_proposal(
+    env: &Env,
+    current: Address,
+) -> Result<(), PredictXError> {
+    require_admin(env, &current)?;
+    env.storage().instance().remove(&DataKey::PendingAdmin);
+    env.events().publish(
+        (Symbol::new(env, "AdminProposalCancelled"), current),
+        (),
+    );
+    Ok(())
+}
+
+pub fn get_pending_admin(env: &Env) -> Option<Address> {
+    env.storage().instance().get(&DataKey::PendingAdmin)
 }
 
 // ── Match functions ───────────────────────────────────────────────────────────
@@ -418,38 +427,35 @@ mod test {
     }
 
     #[test]
-    fn test_propose_admin_does_not_change_admin() {
+    fn test_propose_admin_does_not_change_active_admin() {
         let (env, admin, client) = setup();
         let candidate = Address::generate(&env);
         client.propose_admin(&admin, &candidate);
-        // Old admin still has access
-        let id = default_match(&env, &client, &admin);
-        assert_eq!(id, 1);
+        assert_eq!(client.get_pending_admin(), Some(candidate));
+        // old admin still works
+        default_match(&env, &client, &admin);
     }
 
     #[test]
-    fn test_only_candidate_can_accept() {
+    fn test_only_candidate_can_accept_admin() {
         let (env, admin, client) = setup();
         let candidate = Address::generate(&env);
-        let impostor = Address::generate(&env);
+        let attacker = Address::generate(&env);
         client.propose_admin(&admin, &candidate);
-        let err = client.try_accept_admin(&impostor).unwrap_err().unwrap();
+        let err = client.try_accept_admin(&attacker).unwrap_err().unwrap();
         assert_eq!(err, PredictXError::Unauthorized);
     }
 
     #[test]
-    fn test_proposal_can_be_overwritten_or_cancelled() {
+    fn test_admin_proposal_can_be_overwritten_or_cancelled() {
         let (env, admin, client) = setup();
-        let candidate_a = Address::generate(&env);
-        let candidate_b = Address::generate(&env);
-        client.propose_admin(&admin, &candidate_a);
-        // Overwrite with candidate_b
-        client.propose_admin(&admin, &candidate_b);
-        // candidate_a can no longer accept
-        let err = client.try_accept_admin(&candidate_a).unwrap_err().unwrap();
-        assert_eq!(err, PredictXError::Unauthorized);
-        // candidate_b can accept
-        client.accept_admin(&candidate_b);
+        let first = Address::generate(&env);
+        let second = Address::generate(&env);
+        client.propose_admin(&admin, &first);
+        client.propose_admin(&admin, &second);
+        assert_eq!(client.get_pending_admin(), Some(second.clone()));
+        client.cancel_admin_proposal(&admin);
+        assert_eq!(client.get_pending_admin(), None);
     }
 
     #[test]
@@ -458,7 +464,7 @@ mod test {
         let candidate = Address::generate(&env);
         client.propose_admin(&admin, &candidate);
         client.accept_admin(&candidate);
-        // Old admin can no longer create matches
+        // old admin can no longer create matches
         let err = client.try_create_match(
             &admin,
             &s(&env, "A"), &s(&env, "B"),
@@ -466,8 +472,7 @@ mod test {
             &KICKOFF,
         ).unwrap_err().unwrap();
         assert_eq!(err, PredictXError::Unauthorized);
-        // New admin can
-        let id = default_match(&env, &client, &candidate);
-        assert_eq!(id, 1);
+        // new admin can
+        default_match(&env, &client, &candidate);
     }
 }

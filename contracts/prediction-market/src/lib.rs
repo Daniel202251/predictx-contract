@@ -146,9 +146,6 @@ impl PredictionMarket {
     pub fn admin(env: Env) -> Result<Address, PredictXError> { get_admin(&env) }
     pub fn oracle(env: Env) -> Result<Address, PredictXError> { get_oracle(&env) }
 
-    /// Propose a new admin address. Only the current admin may call this.
-    /// The proposal does not change the active admin until `accept_admin` is
-    /// called by the proposed candidate.
     pub fn propose_admin(env: Env, current: Address, candidate: Address) -> Result<(), PredictXError> {
         let stored_admin = get_admin(&env)?;
         if current != stored_admin { return Err(PredictXError::Unauthorized); }
@@ -158,16 +155,6 @@ impl PredictionMarket {
         Ok(())
     }
 
-    /// Cancel a pending admin proposal. Only the current admin may call this.
-    pub fn cancel_admin_proposal(env: Env, current: Address) -> Result<(), PredictXError> {
-        let stored_admin = get_admin(&env)?;
-        if current != stored_admin { return Err(PredictXError::Unauthorized); }
-        current.require_auth();
-        env.storage().instance().remove(&DataKey::PendingAdmin);
-        Ok(())
-    }
-
-    /// Accept the pending admin proposal. Only the proposed candidate may call.
     pub fn accept_admin(env: Env, candidate: Address) -> Result<(), PredictXError> {
         let pending: Address = env.storage().instance().get(&DataKey::PendingAdmin)
             .ok_or(PredictXError::Unauthorized)?;
@@ -175,7 +162,15 @@ impl PredictionMarket {
         candidate.require_auth();
         env.storage().instance().set(&DataKey::Admin, &candidate);
         env.storage().instance().remove(&DataKey::PendingAdmin);
-        env.events().publish((Symbol::new(&env, "AdminChanged"),), candidate);
+        env.events().publish((Symbol::new(&env, "AdminTransferred"),), candidate);
+        Ok(())
+    }
+
+    pub fn cancel_admin_transfer(env: Env, current: Address) -> Result<(), PredictXError> {
+        let stored_admin = get_admin(&env)?;
+        if current != stored_admin { return Err(PredictXError::Unauthorized); }
+        current.require_auth();
+        env.storage().instance().remove(&DataKey::PendingAdmin);
         Ok(())
     }
 
@@ -862,8 +857,8 @@ mod test {
         let oracle = Address::generate(&env);
         let tok = Address::generate(&env);
         let treasury = Address::generate(&env);
-        let candidate = Address::generate(&env);
         client.initialize(&admin, &oracle, &tok, &treasury, &TEST_FEE_BPS);
+        let candidate = Address::generate(&env);
         client.propose_admin(&admin, &candidate);
         assert_eq!(client.admin(), admin);
     }
@@ -878,13 +873,14 @@ mod test {
         let oracle = Address::generate(&env);
         let tok = Address::generate(&env);
         let treasury = Address::generate(&env);
+        client.initialize(&admin, &oracle, &tok, &treasury, &TEST_FEE_BPS);
         let candidate = Address::generate(&env);
         let stranger = Address::generate(&env);
-        client.initialize(&admin, &oracle, &tok, &treasury, &TEST_FEE_BPS);
         client.propose_admin(&admin, &candidate);
         let err = client.try_accept_admin(&stranger).expect_err("stranger");
         assert_eq!(err, Ok(PredictXError::Unauthorized));
-        assert_eq!(client.admin(), admin);
+        client.accept_admin(&candidate);
+        assert_eq!(client.admin(), candidate);
     }
 
     #[test]
@@ -897,14 +893,14 @@ mod test {
         let oracle = Address::generate(&env);
         let tok = Address::generate(&env);
         let treasury = Address::generate(&env);
+        client.initialize(&admin, &oracle, &tok, &treasury, &TEST_FEE_BPS);
         let first = Address::generate(&env);
         let second = Address::generate(&env);
-        client.initialize(&admin, &oracle, &tok, &treasury, &TEST_FEE_BPS);
         client.propose_admin(&admin, &first);
         client.propose_admin(&admin, &second);
         let err = client.try_accept_admin(&first).expect_err("overwritten");
         assert_eq!(err, Ok(PredictXError::Unauthorized));
-        client.cancel_admin_proposal(&admin);
+        client.cancel_admin_transfer(&admin);
         let err = client.try_accept_admin(&second).expect_err("cancelled");
         assert_eq!(err, Ok(PredictXError::Unauthorized));
         assert_eq!(client.admin(), admin);
@@ -920,8 +916,8 @@ mod test {
         let oracle = Address::generate(&env);
         let tok = Address::generate(&env);
         let treasury = Address::generate(&env);
-        let candidate = Address::generate(&env);
         client.initialize(&admin, &oracle, &tok, &treasury, &TEST_FEE_BPS);
+        let candidate = Address::generate(&env);
         client.propose_admin(&admin, &candidate);
         client.accept_admin(&candidate);
         assert_eq!(client.admin(), candidate);
