@@ -17,6 +17,54 @@ pub fn require_admin(env: &Env, caller: &Address) -> Result<(), PredictXError> {
     Ok(())
 }
 
+// ── Admin ownership transfer ──────────────────────────────────────────────────
+
+pub fn propose_admin(
+    env: &Env,
+    current: Address,
+    candidate: Address,
+) -> Result<(), PredictXError> {
+    require_admin(env, &current)?;
+
+    env.storage()
+        .instance()
+        .set(&DataKey::PendingAdmin, &candidate);
+
+    env.events().publish(
+        (Symbol::new(env, "AdminProposed"),),
+        candidate,
+    );
+
+    Ok(())
+}
+
+pub fn accept_admin(
+    env: &Env,
+    candidate: Address,
+) -> Result<(), PredictXError> {
+    candidate.require_auth();
+
+    let pending: Address = env
+        .storage()
+        .instance()
+        .get(&DataKey::PendingAdmin)
+        .ok_or(PredictXError::Unauthorized)?;
+
+    if candidate != pending {
+        return Err(PredictXError::Unauthorized);
+    }
+
+    env.storage().instance().set(&DataKey::Admin, &candidate);
+    env.storage().instance().remove(&DataKey::PendingAdmin);
+
+    env.events().publish(
+        (Symbol::new(env, "AdminAccepted"),),
+        candidate,
+    );
+
+    Ok(())
+}
+
 // ── Match functions ───────────────────────────────────────────────────────────
 
 pub fn create_match(
@@ -367,5 +415,59 @@ mod test {
     fn test_get_match_count_starts_zero() {
         let (_, _, client) = setup();
         assert_eq!(client.get_match_count(), 0);
+    }
+
+    #[test]
+    fn test_propose_admin_does_not_change_admin() {
+        let (env, admin, client) = setup();
+        let candidate = Address::generate(&env);
+        client.propose_admin(&admin, &candidate);
+        // Old admin still has access
+        let id = default_match(&env, &client, &admin);
+        assert_eq!(id, 1);
+    }
+
+    #[test]
+    fn test_only_candidate_can_accept() {
+        let (env, admin, client) = setup();
+        let candidate = Address::generate(&env);
+        let impostor = Address::generate(&env);
+        client.propose_admin(&admin, &candidate);
+        let err = client.try_accept_admin(&impostor).unwrap_err().unwrap();
+        assert_eq!(err, PredictXError::Unauthorized);
+    }
+
+    #[test]
+    fn test_proposal_can_be_overwritten_or_cancelled() {
+        let (env, admin, client) = setup();
+        let candidate_a = Address::generate(&env);
+        let candidate_b = Address::generate(&env);
+        client.propose_admin(&admin, &candidate_a);
+        // Overwrite with candidate_b
+        client.propose_admin(&admin, &candidate_b);
+        // candidate_a can no longer accept
+        let err = client.try_accept_admin(&candidate_a).unwrap_err().unwrap();
+        assert_eq!(err, PredictXError::Unauthorized);
+        // candidate_b can accept
+        client.accept_admin(&candidate_b);
+    }
+
+    #[test]
+    fn test_old_admin_loses_access_after_acceptance() {
+        let (env, admin, client) = setup();
+        let candidate = Address::generate(&env);
+        client.propose_admin(&admin, &candidate);
+        client.accept_admin(&candidate);
+        // Old admin can no longer create matches
+        let err = client.try_create_match(
+            &admin,
+            &s(&env, "A"), &s(&env, "B"),
+            &s(&env, "L"), &s(&env, "V"),
+            &KICKOFF,
+        ).unwrap_err().unwrap();
+        assert_eq!(err, PredictXError::Unauthorized);
+        // New admin can
+        let id = default_match(&env, &client, &candidate);
+        assert_eq!(id, 1);
     }
 }
