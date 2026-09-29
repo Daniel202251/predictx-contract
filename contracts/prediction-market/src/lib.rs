@@ -1,6 +1,7 @@
 #![no_std]
 
 mod matches;
+mod payouts;
 mod staking;
 pub(crate) mod token_utils;
 
@@ -376,6 +377,16 @@ impl PredictionMarket {
 
     pub fn get_user_stakes(env: Env, user: Address) -> Vec<u64> {
         staking::get_user_stakes(&env, &user)
+    }
+
+    /// Paged view of a user's staked poll ids.
+    ///
+    /// Returns at most `limit` ids starting at `start`. The page size is
+    /// capped at [`staking::MAX_USER_STAKES_PAGE_SIZE`]; larger requests are
+    /// clamped. Returns an empty vector when the user has no stakes or when
+    /// `start` is past the end of the list.
+    pub fn get_user_stakes_paged(env: Env, user: Address, start: u32, limit: u32) -> Vec<u64> {
+        staking::get_user_stakes_paged(&env, &user, start, limit)
     }
 
     pub fn has_user_staked(env: Env, poll_id: u64, user: Address) -> bool {

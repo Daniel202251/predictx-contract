@@ -120,6 +120,9 @@ pub fn stake(
 
 // ── View functions ────────────────────────────────────────────────────────────
 
+/// Maximum number of poll ids returned by a single `get_user_stakes_paged` call.
+pub const MAX_USER_STAKES_PAGE_SIZE: u32 = 50;
+
 /// Retrieve a user's stake record for a poll.
 pub fn get_stake_info(env: &Env, poll_id: u64, user: &Address) -> Result<Stake, PredictXError> {
     env.storage()
@@ -129,11 +132,49 @@ pub fn get_stake_info(env: &Env, poll_id: u64, user: &Address) -> Result<Stake, 
 }
 
 /// List all poll IDs a user has staked on.
+///
+/// # Deprecated
+///
+/// This function returns an unbounded `Vec` and will eventually exceed the
+/// ledger entry / resource limits for active users, at which point it will
+/// fail permanently. Prefer [`get_user_stakes_paged`] for any new callers.
 pub fn get_user_stakes(env: &Env, user: &Address) -> Vec<u64> {
     env.storage()
         .persistent()
         .get(&DataKey::UserStakes(user.clone()))
         .unwrap_or(Vec::new(env))
+}
+
+/// Paged view over the poll IDs a user has staked on.
+///
+/// Returns at most `limit` ids starting at `start`, in the same order as
+/// [`get_user_stakes`]. `limit` is capped at [`MAX_USER_STAKES_PAGE_SIZE`];
+/// a `limit` of `0` yields an empty vector. A user with no stakes, or a
+/// `start` past the end of the list, also yields an empty vector.
+pub fn get_user_stakes_paged(env: &Env, user: &Address, start: u32, limit: u32) -> Vec<u64> {
+    let all: Vec<u64> = env
+        .storage()
+        .persistent()
+        .get(&DataKey::UserStakes(user.clone()))
+        .unwrap_or(Vec::new(env));
+
+    let capped = if limit > MAX_USER_STAKES_PAGE_SIZE {
+        MAX_USER_STAKES_PAGE_SIZE
+    } else {
+        limit
+    };
+
+    let mut page: Vec<u64> = Vec::new(env);
+    let len = all.len();
+    let mut i = start;
+    let end = start.saturating_add(capped);
+    while i < end && i < len {
+        if let Some(id) = all.get(i) {
+            page.push_back(id);
+        }
+        i += 1;
+    }
+    page
 }
 
 /// Check whether a user has already staked on a given poll.
@@ -541,6 +582,103 @@ mod test {
         assert_eq!(stakes.len(), 2);
         assert_eq!(stakes.get(0).unwrap(), poll_id1);
         assert_eq!(stakes.get(1).unwrap(), poll_id2);
+    }
+
+    #[test]
+    fn get_user_stakes_paged_matches_unbounded_order() {
+        let s = setup();
+        let user = Address::generate(&s.env);
+        let amount: i128 = 50_000_000;
+        let count: u32 = 5;
+        mint_tokens(&s, &user, amount * (count as i128));
+
+        let mut expected: soroban_sdk::Vec<u64> = soroban_sdk::Vec::new(&s.env);
+        for _ in 0..count {
+            let poll_id = create_test_poll(&s, 2_000_000);
+            s.client.stake(&user, &poll_id, &amount, &StakeSide::Yes);
+            expected.push_back(poll_id);
+        }
+
+        let all = s.client.get_user_stakes(&user);
+        assert_eq!(all, expected);
+
+        let page = s.client.get_user_stakes_paged(&user, &0_u32, &10_u32);
+        assert_eq!(page, expected);
+
+        let page2 = s.client.get_user_stakes_paged(&user, &2_u32, &2_u32);
+        assert_eq!(page2.len(), 2);
+        assert_eq!(page2.get(0).unwrap(), expected.get(2).unwrap());
+        assert_eq!(page2.get(1).unwrap(), expected.get(3).unwrap());
+    }
+
+    #[test]
+    fn get_user_stakes_paged_empty_for_unknown_user() {
+        let s = setup();
+        let user = Address::generate(&s.env);
+
+        let page = s.client.get_user_stakes_paged(&user, &0_u32, &10_u32);
+        assert_eq!(page.len(), 0);
+    }
+
+    #[test]
+    fn get_user_stakes_paged_caps_page_size() {
+        let s = setup();
+        let user = Address::generate(&s.env);
+        let amount: i128 = 50_000_000;
+        let count: u32 = 5;
+        mint_tokens(&s, &user, amount * (count as i128));
+
+        for _ in 0..count {
+            let poll_id = create_test_poll(&s, 2_000_000);
+            s.client.stake(&user, &poll_id, &amount, &StakeSide::Yes);
+        }
+
+        // Requesting a huge limit must not exceed the cap.
+        let page = s.client.get_user_stakes_paged(&user, &0_u32, &u32::MAX);
+        assert_eq!(page.len(), count);
+
+        // Zero limit yields an empty page.
+        let empty = s.client.get_user_stakes_paged(&user, &0_u32, &0_u32);
+        assert_eq!(empty.len(), 0);
+
+        // Start past the end yields an empty page.
+        let past_end = s.client.get_user_stakes_paged(&user, &count, &10_u32);
+        assert_eq!(past_end.len(), 0);
+    }
+
+    #[test]
+    fn get_user_stakes_paged_stays_within_budget_for_large_history() {
+        let s = setup();
+        let user = Address::generate(&s.env);
+        let amount: i128 = 50_000_000;
+        let count: u32 = 120;
+        mint_tokens(&s, &user, amount * (count as i128));
+
+        for _ in 0..count {
+            let poll_id = create_test_poll(&s, 2_000_000);
+            s.client.stake(&user, &poll_id, &amount, &StakeSide::Yes);
+        }
+
+        let all = s.client.get_user_stakes(&user);
+        assert_eq!(all.len(), count);
+
+        // Walk the full history in capped pages and confirm we see every id
+        // in the same order, never exceeding the cap per call.
+        let mut seen: u32 = 0;
+        let mut start: u32 = 0;
+        loop {
+            let page = s.client.get_user_stakes_paged(&user, &start, &u32::MAX);
+            assert!(page.len() <= crate::staking::MAX_USER_STAKES_PAGE_SIZE);
+            if page.len() == 0 {
+                break;
+            }
+            for i in 0..page.len() {
+                assert_eq!(page.get(i).unwrap(), all.get(start + i).unwrap());
+            }
+            seen += page.len();
+            start += page.len();
+        }
+        assert_eq!(seen, count);
     }
 
     #[test]
