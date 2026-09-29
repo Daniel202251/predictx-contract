@@ -143,36 +143,58 @@ impl PredictionMarket {
         Ok(())
     }
 
-    pub fn admin(env: Env) -> Result<Address, PredictXError> { get_admin(&env) }
-    pub fn oracle(env: Env) -> Result<Address, PredictXError> { get_oracle(&env) }
-
-    pub fn propose_admin(env: Env, current: Address, candidate: Address) -> Result<(), PredictXError> {
+    /// Propose a new admin. The proposal does not change the active admin
+    /// until the candidate calls `accept_admin`. Only the current admin may
+    /// propose, and a new proposal overwrites any pending one.
+    pub fn propose_admin(
+        env: Env,
+        current: Address,
+        candidate: Address,
+    ) -> Result<(), PredictXError> {
         let stored_admin = get_admin(&env)?;
-        if current != stored_admin { return Err(PredictXError::Unauthorized); }
+        if current != stored_admin {
+            return Err(PredictXError::Unauthorized);
+        }
         current.require_auth();
         env.storage().instance().set(&DataKey::PendingAdmin, &candidate);
-        env.events().publish((Symbol::new(&env, "AdminProposed"),), candidate);
+        env.events()
+            .publish((Symbol::new(&env, "AdminProposed"),), candidate);
         Ok(())
     }
 
+    /// Cancel a pending admin proposal. Only the current admin may cancel.
+    pub fn cancel_admin_proposal(env: Env, current: Address) -> Result<(), PredictXError> {
+        let stored_admin = get_admin(&env)?;
+        if current != stored_admin {
+            return Err(PredictXError::Unauthorized);
+        }
+        current.require_auth();
+        env.storage().instance().remove(&DataKey::PendingAdmin);
+        Ok(())
+    }
+
+    /// Accept a pending admin proposal. Only the proposed candidate may call
+    /// this, and it completes the handover: the candidate becomes the active
+    /// admin and the previous admin loses access.
     pub fn accept_admin(env: Env, candidate: Address) -> Result<(), PredictXError> {
-        let pending: Address = env.storage().instance().get(&DataKey::PendingAdmin)
+        let pending: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::PendingAdmin)
             .ok_or(PredictXError::Unauthorized)?;
-        if candidate != pending { return Err(PredictXError::Unauthorized); }
+        if candidate != pending {
+            return Err(PredictXError::Unauthorized);
+        }
         candidate.require_auth();
         env.storage().instance().set(&DataKey::Admin, &candidate);
         env.storage().instance().remove(&DataKey::PendingAdmin);
-        env.events().publish((Symbol::new(&env, "AdminTransferred"),), candidate);
+        env.events()
+            .publish((Symbol::new(&env, "AdminTransferred"),), candidate);
         Ok(())
     }
 
-    pub fn cancel_admin_transfer(env: Env, current: Address) -> Result<(), PredictXError> {
-        let stored_admin = get_admin(&env)?;
-        if current != stored_admin { return Err(PredictXError::Unauthorized); }
-        current.require_auth();
-        env.storage().instance().remove(&DataKey::PendingAdmin);
-        Ok(())
-    }
+    pub fn admin(env: Env) -> Result<Address, PredictXError> { get_admin(&env) }
+    pub fn oracle(env: Env) -> Result<Address, PredictXError> { get_oracle(&env) }
 
     pub fn set_oracle(env: Env, voting_oracle: Address) -> Result<(), PredictXError> {
         ensure_not_paused(&env)?;
@@ -864,7 +886,7 @@ mod test {
     }
 
     #[test]
-    fn only_proposed_candidate_can_accept() {
+    fn accept_admin_only_callable_by_candidate() {
         let env = Env::default();
         env.mock_all_auths();
         let contract_id = env.register(PredictionMarket, ());
@@ -877,10 +899,11 @@ mod test {
         let candidate = Address::generate(&env);
         let stranger = Address::generate(&env);
         client.propose_admin(&admin, &candidate);
-        let err = client.try_accept_admin(&stranger).expect_err("stranger");
+        let err = client
+            .try_accept_admin(&stranger)
+            .expect_err("stranger cannot accept");
         assert_eq!(err, Ok(PredictXError::Unauthorized));
-        client.accept_admin(&candidate);
-        assert_eq!(client.admin(), candidate);
+        assert_eq!(client.admin(), admin);
     }
 
     #[test]
@@ -898,16 +921,20 @@ mod test {
         let second = Address::generate(&env);
         client.propose_admin(&admin, &first);
         client.propose_admin(&admin, &second);
-        let err = client.try_accept_admin(&first).expect_err("overwritten");
+        let err = client
+            .try_accept_admin(&first)
+            .expect_err("overwritten proposal");
         assert_eq!(err, Ok(PredictXError::Unauthorized));
-        client.cancel_admin_transfer(&admin);
-        let err = client.try_accept_admin(&second).expect_err("cancelled");
+        client.cancel_admin_proposal(&admin);
+        let err = client
+            .try_accept_admin(&second)
+            .expect_err("cancelled proposal");
         assert_eq!(err, Ok(PredictXError::Unauthorized));
         assert_eq!(client.admin(), admin);
     }
 
     #[test]
-    fn old_admin_loses_access_after_acceptance() {
+    fn accept_admin_transfers_ownership_and_old_admin_loses_access() {
         let env = Env::default();
         env.mock_all_auths();
         let contract_id = env.register(PredictionMarket, ());
@@ -921,7 +948,9 @@ mod test {
         client.propose_admin(&admin, &candidate);
         client.accept_admin(&candidate);
         assert_eq!(client.admin(), candidate);
-        let err = client.try_pause(&admin).expect_err("old admin");
+        let err = client
+            .try_pause(&admin)
+            .expect_err("old admin should lose access");
         assert_eq!(err, Ok(PredictXError::Unauthorized));
         client.pause(&candidate);
         assert_eq!(client.is_paused(), true);
