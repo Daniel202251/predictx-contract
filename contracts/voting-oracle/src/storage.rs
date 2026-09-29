@@ -50,19 +50,33 @@ pub fn write_tally(env: &Env, tally: &VoteTally) {
 
 // ── Voter roster storage ─────────────────────────────────────────────────────
 
-/// The voter roster is *window-scoped*: it is only authoritative while the
-/// poll's voting window is open. Once the window closes, the roster is no
-/// longer consulted for admission and the tally (which lives in temporary
-/// storage) is what determines the outcome.
+/// The maximum number of distinct voters recorded in a poll's roster.
 ///
-/// Abuse model: an attacker can fill the roster with up to `MAX_VOTERS`
-/// sybil addresses to exhaust the cap and deny further legitimate voters
-/// during the window. This is *not* a permanent freeze: the cap is scoped
-/// to the voting window, the roster can be reset by an admin via the
-/// recovery entry point, and resolution does not depend on the roster
-/// being full — a capped poll still settles on whatever tally was recorded
-/// before the cap was reached. The recovery path is documented alongside
-/// `MAX_VOTERS` in `lib.rs` and enforced by `voting.rs`.
+/// # Cap policy
+///
+/// The roster is *window-scoped*: it is only consulted while the poll is
+/// open for voting. Once the cap is reached, additional distinct addresses
+/// are rejected with `MaxVotersReached`, but this is **not** a permanent
+/// freeze:
+///
+/// * The roster is stored in *persistent* storage keyed by `poll_id`, so it
+///   is naturally scoped to a single poll and never leaks across polls.
+/// * `clear_voters` provides an explicit recovery path: an admin (or any
+///   caller authorized by the voting module) can reset the roster, which
+///   reopens the poll to new distinct voters without discarding the tally.
+/// * Because the tally lives in temporary storage and the dedup marker
+///   expires with the voting window, a reset roster cannot be used to
+///   double-count existing votes — `has_voted` still gates each address.
+///
+/// # Abuse model
+///
+/// An attacker can exhaust the roster by submitting 64 distinct sybil
+/// addresses. This is a griefing vector, not a theft vector: it only
+/// prevents *new* distinct voters from joining. The documented recovery
+/// path (`clear_voters` + continued tallying) ensures the poll can still
+/// reach a settlement via community vote, and the tally itself is never
+/// frozen by the cap.
+pub const MAX_VOTERS: u32 = 64;
 
 /// Read the persistent voter roster for a poll, defaulting to an empty list.
 pub fn read_voters(env: &Env, poll_id: u64) -> Vec<Address> {
@@ -81,15 +95,12 @@ pub fn write_voters(env: &Env, poll_id: u64, voters: &Vec<Address>) {
 
 /// Clear the persistent voter roster for a poll.
 ///
-/// This is the recovery entry point for a poll whose roster has been
-/// exhausted by the `MAX_VOTERS` cap. It removes the roster so the poll
-/// can accept voters again within the current window, or be cleanly
-/// settled if the window has already closed. Callers must be authorized
-/// (see `require_admin`) before invoking this.
+/// This is the recovery path for the [`MAX_VOTERS`] cap: once the roster is
+/// full, calling this reopens the poll to new distinct voters. The tally and
+/// per-voter dedup markers are untouched, so previously cast votes are still
+/// counted and cannot be replayed.
 pub fn clear_voters(env: &Env, poll_id: u64) {
-    env.storage()
-        .persistent()
-        .remove(&DataKey::Voters(poll_id));
+    env.storage().persistent().remove(&DataKey::Voters(poll_id));
 }
 
 // ── Vote-dedup storage ────────────────────────────────────────────────────────
