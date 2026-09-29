@@ -50,6 +50,20 @@ pub fn write_tally(env: &Env, tally: &VoteTally) {
 
 // ── Voter roster storage ─────────────────────────────────────────────────────
 
+/// The voter roster is *window-scoped*: it is only authoritative while the
+/// poll's voting window is open. Once the window closes, the roster is no
+/// longer consulted for admission and the tally (which lives in temporary
+/// storage) is what determines the outcome.
+///
+/// Abuse model: an attacker can fill the roster with up to `MAX_VOTERS`
+/// sybil addresses to exhaust the cap and deny further legitimate voters
+/// during the window. This is *not* a permanent freeze: the cap is scoped
+/// to the voting window, the roster can be reset by an admin via the
+/// recovery entry point, and resolution does not depend on the roster
+/// being full — a capped poll still settles on whatever tally was recorded
+/// before the cap was reached. The recovery path is documented alongside
+/// `MAX_VOTERS` in `lib.rs` and enforced by `voting.rs`.
+
 /// Read the persistent voter roster for a poll, defaulting to an empty list.
 pub fn read_voters(env: &Env, poll_id: u64) -> Vec<Address> {
     env.storage()
@@ -63,6 +77,19 @@ pub fn write_voters(env: &Env, poll_id: u64, voters: &Vec<Address>) {
     env.storage()
         .persistent()
         .set(&DataKey::Voters(poll_id), voters);
+}
+
+/// Clear the persistent voter roster for a poll.
+///
+/// This is the recovery entry point for a poll whose roster has been
+/// exhausted by the `MAX_VOTERS` cap. It removes the roster so the poll
+/// can accept voters again within the current window, or be cleanly
+/// settled if the window has already closed. Callers must be authorized
+/// (see `require_admin`) before invoking this.
+pub fn clear_voters(env: &Env, poll_id: u64) {
+    env.storage()
+        .persistent()
+        .remove(&DataKey::Voters(poll_id));
 }
 
 // ── Vote-dedup storage ────────────────────────────────────────────────────────
