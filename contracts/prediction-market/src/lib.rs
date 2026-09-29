@@ -369,6 +369,15 @@ impl PredictionMarket {
         payouts::get_claimable_amount(&env, poll_id, &user)
     }
 
+    /// Claim winnings for a resolved poll.
+    ///
+    /// Transfers the same amount `get_claimable_amount` would return.
+    /// Requires the caller to be the staker (`user.require_auth()`).
+    pub fn claim_winnings(env: Env, user: Address, poll_id: u64) -> Result<i128, PredictXError> {
+        ensure_not_paused(&env)?;
+        payouts::claim_winnings_for_poll(&env, user, poll_id)
+    }
+
     pub fn get_platform_stats(env: Env) -> PlatformStats {
         get_platform_stats(&env)
     }

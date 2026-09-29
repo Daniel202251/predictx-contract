@@ -1,6 +1,6 @@
-use soroban_sdk::{Address, Env};
-use predictx_shared::{PollStatus, Stake, StakeSide, BPS_DENOMINATOR};
-use crate::{DataKey, token_utils};
+use soroban_sdk::{Address, Env, Symbol};
+use predictx_shared::{Poll, PollStatus, Stake, StakeSide, PredictXError, BPS_DENOMINATOR};
+use crate::{DataKey, get_platform_stats, set_platform_stats, token_utils};
 
 // ── Claimable amount view ─────────────────────────────────────────────────────
 
@@ -101,13 +101,117 @@ pub fn get_claimable_amount(env: &Env, poll_id: u64, user: &Address) -> i128 {
     stake.amount + share_of_losers
 }
 
+// ── claim_winnings ────────────────────────────────────────────────────────────
+
+/// Claim winnings for a resolved poll.
+///
+/// Uses **identical arithmetic** to `get_claimable_amount` so the view always
+/// equals the amount actually transferred.
+///
+/// Side-effects:
+/// - Marks `stake.claimed = true`
+/// - Transfers payout tokens from contract → user
+/// - Updates `PlatformStats.total_payouts`
+/// - Emits `WinningsClaimed(poll_id, user)` event
+pub fn claim_winnings_for_poll(
+    env: &Env,
+    user: Address,
+    poll_id: u64,
+) -> Result<i128, PredictXError> {
+    user.require_auth();
+
+    // ── Checks ────────────────────────────────────────────────────────────────
+
+    let poll: Poll = env
+        .storage()
+        .persistent()
+        .get(&DataKey::Poll(poll_id))
+        .ok_or(PredictXError::PollNotFound)?;
+
+    if poll.status != PollStatus::Resolved {
+        return Err(PredictXError::PollNotActive);
+    }
+
+    let yes_won = poll.outcome.ok_or(PredictXError::PollNotActive)?;
+
+    let mut stake: Stake = env
+        .storage()
+        .persistent()
+        .get(&DataKey::Stake(poll_id, user.clone()))
+        .ok_or(PredictXError::NotStaker)?;
+
+    if stake.claimed {
+        return Err(PredictXError::AlreadyClaimed);
+    }
+
+    // Guard against emergency-withdrawn stakes.
+    let emergency_claimed: bool = env
+        .storage()
+        .persistent()
+        .get(&DataKey::EmergencyClaimed(poll_id, user.clone()))
+        .unwrap_or(false);
+    if emergency_claimed {
+        return Err(PredictXError::AlreadyClaimed);
+    }
+
+    let staker_won = match stake.side {
+        StakeSide::Yes => yes_won,
+        StakeSide::No => !yes_won,
+    };
+    if !staker_won {
+        return Err(PredictXError::NotOnWinningSide);
+    }
+
+    // ── Compute payout (same formula as get_claimable_amount) ─────────────────
+    let (winning_pool, losing_pool) = if yes_won {
+        (poll.yes_pool, poll.no_pool)
+    } else {
+        (poll.no_pool, poll.yes_pool)
+    };
+
+    let payout = if winning_pool == 0 {
+        stake.amount
+    } else {
+        let fee_bps = token_utils::get_platform_fee_bps(env);
+        let fee_factor = (BPS_DENOMINATOR - fee_bps) as i128;
+        let bps = BPS_DENOMINATOR as i128;
+        let net_losing_pool = losing_pool * fee_factor / bps;
+        let share_of_losers = stake.amount * net_losing_pool / winning_pool;
+        stake.amount + share_of_losers
+    };
+
+    if payout == 0 {
+        return Err(PredictXError::StakeAmountZero);
+    }
+
+    // ── Effects ───────────────────────────────────────────────────────────────
+    stake.claimed = true;
+    env.storage()
+        .persistent()
+        .set(&DataKey::Stake(poll_id, user.clone()), &stake);
+
+    // ── Interactions ──────────────────────────────────────────────────────────
+    token_utils::transfer_from_contract(env, &user, payout)?;
+
+    let mut stats = get_platform_stats(env);
+    stats.total_payouts += payout;
+    set_platform_stats(env, &stats);
+
+    env.events().publish(
+        (Symbol::new(env, "WinningsClaimed"), poll_id, user.clone()),
+        payout,
+    );
+
+    Ok(payout)
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod test {
     extern crate std;
 
-    use soroban_sdk::{testutils::Address as _, token, Address, Env, String};
+    use soroban_sdk::{testutils::{Address as _, Ledger}, token, Address, Env, String};
     use predictx_shared::{Poll, PollCategory, PollStatus, Stake, StakeSide};
     use crate::{DataKey, PredictionMarket, PredictionMarketClient};
 
@@ -382,6 +486,63 @@ mod test {
         assert!(
             (claimable_b - 2 * claimable_a).abs() <= 1,
             "claimable_b ({claimable_b}) should be ~2× claimable_a ({claimable_a})"
+        );
+    }
+
+    // ── Test 4: view output equals actual claim_winnings transfer ─────────────
+    //
+    // The primary AC for this issue: get_claimable_amount must return the
+    // exact amount that a subsequent claim_winnings call transfers.
+    //
+    // Setup:
+    //   Yes pool = 300 tokens (user_stake 100 + another winner 200)
+    //   No pool  = 200 tokens, fee = 5 %
+    //   Yes won → user's view-amount = tokens actually received
+    #[test]
+    fn view_output_equals_claim_winnings_transfer() {
+        let s = setup();
+        let poll_id = create_poll(&s, 2_000_000);
+
+        let user_stake: i128 = 100_000_000;
+        let other_stake: i128 = 200_000_000;
+        let no_pool: i128 = 200_000_000;
+        let yes_pool = user_stake + other_stake; // 300_000_000
+
+        plant_resolved_poll(&s, poll_id, yes_pool, no_pool, true);
+
+        let user = Address::generate(&s.env);
+        plant_stake(&s, poll_id, &user, user_stake, StakeSide::Yes, false);
+
+        // Fund the contract so claim_winnings can transfer tokens.
+        mint_tokens(&s, &s.contract_id, yes_pool + no_pool);
+
+        // ── Read view BEFORE claiming ─────────────────────────────────────────
+        let claimable = s.client.get_claimable_amount(&poll_id, &user);
+        assert!(claimable > 0, "winner must have a positive claimable amount");
+
+        let balance_before = token_balance(&s, &user);
+
+        // ── Claim ─────────────────────────────────────────────────────────────
+        let returned = s.client.claim_winnings(&user, &poll_id);
+        let balance_after = token_balance(&s, &user);
+
+        // ── Assert: view == returned value == tokens received ─────────────────
+        assert_eq!(
+            claimable, returned,
+            "get_claimable_amount ({claimable}) must equal claim_winnings return ({returned})"
+        );
+        assert_eq!(
+            claimable,
+            balance_after - balance_before,
+            "get_claimable_amount ({claimable}) must equal tokens transferred ({})",
+            balance_after - balance_before
+        );
+
+        // ── After claiming: view returns 0 ────────────────────────────────────
+        assert_eq!(
+            s.client.get_claimable_amount(&poll_id, &user),
+            0,
+            "claimable amount must be 0 after claiming"
         );
     }
 }
