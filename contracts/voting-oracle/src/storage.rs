@@ -1,4 +1,4 @@
-use crate::{DataKey, MAX_VOTERS};
+use crate::DataKey;
 use predictx_shared::{PredictXError, VoteChoice, VoteTally};
 use soroban_sdk::{Address, Env, Vec};
 
@@ -50,31 +50,24 @@ pub fn write_tally(env: &Env, tally: &VoteTally) {
 
 // ── Voter roster storage ─────────────────────────────────────────────────────
 
-/// The cap policy for the voter roster.
-///
-/// `MAX_VOTERS` bounds the size of a single poll's roster so that per-poll
-/// tallying and reward iteration stay within the contract's resource budget.
-/// The cap is **window-scoped**, not a permanent freeze: the roster is only
-/// authoritative while the poll's voting window is open. Once the window
-/// closes (or the tally is cleared), the roster is no longer consulted and
-/// the poll can still be settled through the normal resolution path, which
-/// rests on the tally already accumulated rather than on admitting new
-/// voters. Reaching the cap therefore cannot leave a poll permanently
-/// unsettleable by community vote.
+/// The voter roster is *window-scoped*: it is only authoritative while the
+/// voting window is open. Once the window closes, the roster is no longer
+/// consulted for admission decisions and the poll settles from the tally that
+/// was accumulated during the window.
 ///
 /// Abuse model: an attacker can fill the roster with up to `MAX_VOTERS`
-/// sybil addresses to lock out honest voters for the remainder of the
-/// window. This is a griefing vector, not a theft vector — the attacker
-/// gains no extra weight beyond the capped roster, and the poll still
-/// resolves on the tally cast before the cap was hit. Operators mitigate
-/// by keeping the cap generous relative to expected turnout and by
-/// treating a capped roster as a signal to shorten or re-run the window.
+/// distinct (possibly sybil) addresses to exhaust the cap. Because the cap is
+/// window-scoped and the poll can still be settled from the tally recorded
+/// before the cap was hit, exhausting the roster cannot permanently freeze the
+/// poll. It only limits how many additional distinct voters can be admitted
+/// during the current window; the poll remains settleable by community vote.
 ///
-/// Recovery path: when the cap is reached, `cast_vote` returns
-/// `MaxVotersReached` for new addresses only; existing roster members can
-/// still vote, and the poll proceeds to settlement on the current tally.
-/// No admin override is required to unstick the poll.
-///
+/// Recovery path: when the cap is reached, the poll is not permanently
+/// unsettleable. The window can be closed (or has already closed), at which
+/// point settlement proceeds from the stored tally rather than requiring new
+/// voters. There is no permanent freeze because the cap does not block
+/// resolution.
+
 /// Read the persistent voter roster for a poll, defaulting to an empty list.
 pub fn read_voters(env: &Env, poll_id: u64) -> Vec<Address> {
     env.storage()
@@ -88,15 +81,6 @@ pub fn write_voters(env: &Env, poll_id: u64, voters: &Vec<Address>) {
     env.storage()
         .persistent()
         .set(&DataKey::Voters(poll_id), voters);
-}
-
-/// Whether the voter roster for `poll_id` has reached `MAX_VOTERS`.
-///
-/// Used by `cast_vote` to reject *new* addresses once the cap is hit while
-/// still allowing already-rostered voters to cast or update their vote, so
-/// a capped poll remains settleable on the tally already collected.
-pub fn is_roster_full(env: &Env, poll_id: u64) -> bool {
-    read_voters(env, poll_id).len() >= MAX_VOTERS
 }
 
 // ── Vote-dedup storage ────────────────────────────────────────────────────────
