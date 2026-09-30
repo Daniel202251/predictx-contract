@@ -74,4 +74,14 @@ pub enum PredictXError {
     StakeBelowMinimum = 34,
     /// Evidence string is invalid or empty.
     InvalidEvidence = 35,
+    /// The poll already has the maximum number of voters.
+    MaxVotersReached = 35,
+    /// The voter did not back the winning outcome (including `Unclear`).
+    VoterNotEligible = 36,
+    /// The poll has no resolved outcome yet.
+    OutcomeNotAvailable = 37,
+    /// The reward amount must not be negative.
+    InvalidRewardAmount = 38,
+    /// The requested poll status transition is not part of the legal graph.
+    InvalidStateTransition = 39,
 }
