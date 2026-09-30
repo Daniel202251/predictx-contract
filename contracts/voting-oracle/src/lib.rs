@@ -1,5 +1,7 @@
 #![no_std]
 
+use predictx_shared::{PollStatus, PredictXError, VoteTally};
+use soroban_sdk::{contract, contractimpl, contracttype, Address, Env};
 mod storage;
 mod voting;
 
@@ -30,6 +32,7 @@ enum DataKey {
     /// Registered admins `Vec<Address>`. (Instance)
     AdminList,
     PollStatus(u64),
+    Tally(u64),
     /// `poll_id` → vote tally. (Temporary — only needed during the voting window)
     VoteTally(u64),
     /// `poll_id` → automatically resolved outcome.
@@ -55,6 +58,16 @@ fn get_admin(env: &Env) -> Result<Address, PredictXError> {
         .ok_or(PredictXError::NotInitialized)
 }
 
+/// Read the stored vote tally for `poll_id`, if any.
+fn read_tally(env: &Env, poll_id: u64) -> Option<VoteTally> {
+    env.storage().persistent().get(&DataKey::Tally(poll_id))
+}
+
+/// Persist `tally` under its poll ID.
+fn write_tally(env: &Env, tally: &VoteTally) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::Tally(tally.poll_id), tally);
 pub(crate) fn read_poll_status(env: &Env, poll_id: u64) -> PollStatus {
     let stored: Option<StoredPollStatus> = env
         .storage()
@@ -292,6 +305,14 @@ impl VotingOracle {
     pub fn has_claimed_reward(env: Env, poll_id: u64, voter: Address) -> bool {
         storage::has_claimed_reward(&env, poll_id, &voter)
     }
+
+    /// Read the aggregated community vote tally for `poll_id`.
+    ///
+    /// Returns [`PredictXError::PollNotFound`] when no tally has been recorded
+    /// for the poll yet.
+    pub fn get_vote_tally(env: Env, poll_id: u64) -> Result<VoteTally, PredictXError> {
+        read_tally(&env, poll_id).ok_or(PredictXError::PollNotFound)
+    }
 }
 
 #[cfg(test)]
@@ -318,6 +339,7 @@ mod test {
     }
 
     #[test]
+    fn get_vote_tally_returns_poll_not_found_for_unknown_poll() {
     fn voting_views_return_false_for_unknown_poll() {
         let (env, _admin, client) = setup();
         let voter = Address::generate(&env);
@@ -362,6 +384,78 @@ mod test {
         let contract_id = env.register(VotingOracle, ());
         let client = VotingOracleClient::new(&env, &contract_id);
 
+        let err = client
+            .try_get_vote_tally(&7_u64)
+            .expect_err("unknown poll should error");
+        assert_eq!(err, Ok(PredictXError::PollNotFound));
+    }
+
+    #[test]
+    fn get_vote_tally_reads_back_stored_tally_field_for_field() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let contract_id = env.register(VotingOracle, ());
+        let client = VotingOracleClient::new(&env, &contract_id);
+
+        let tally = VoteTally {
+            poll_id: 99,
+            yes_votes: 12,
+            no_votes: 5,
+            unclear_votes: 3,
+            total_voters: 20,
+            voting_end_time: 1_700_000_000,
+            reward_pool: 1_500_000,
+        };
+
+        env.as_contract(&contract_id, || {
+            write_tally(&env, &tally);
+        });
+
+        let stored = client.get_vote_tally(&99_u64);
+        assert_eq!(stored, tally);
+        assert_eq!(stored.poll_id, 99);
+        assert_eq!(stored.yes_votes, 12);
+        assert_eq!(stored.no_votes, 5);
+        assert_eq!(stored.unclear_votes, 3);
+        assert_eq!(stored.total_voters, 20);
+        assert_eq!(stored.voting_end_time, 1_700_000_000);
+        assert_eq!(stored.reward_pool, 1_500_000);
+    }
+
+    #[test]
+    fn write_tally_overwrites_previous_tally_for_same_poll() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let contract_id = env.register(VotingOracle, ());
+        let client = VotingOracleClient::new(&env, &contract_id);
+
+        let first = VoteTally {
+            poll_id: 1,
+            yes_votes: 1,
+            no_votes: 0,
+            unclear_votes: 0,
+            total_voters: 1,
+            voting_end_time: 100,
+            reward_pool: 10,
+        };
+        let second = VoteTally {
+            poll_id: 1,
+            yes_votes: 4,
+            no_votes: 2,
+            unclear_votes: 1,
+            total_voters: 7,
+            voting_end_time: 200,
+            reward_pool: 70,
+        };
+
+        env.as_contract(&contract_id, || {
+            write_tally(&env, &first);
+            write_tally(&env, &second);
+        });
+
+        assert_eq!(client.get_vote_tally(&1_u64), second);
         let admin = Address::generate(&env);
         client.initialize(&admin);
 
