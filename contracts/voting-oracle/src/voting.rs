@@ -79,6 +79,38 @@ use soroban_sdk::{Address, Env, Symbol};
 
 /// Record a voter's choice on a poll.
 ///
+/// # Voter cap policy
+///
+/// The roster of distinct voters per poll is bounded by [`MAX_VOTERS`]. The
+/// cap is **window-scoped**, not a permanent freeze: it only limits how many
+/// distinct addresses may be recorded during the poll's voting window, and it
+/// never blocks the poll from reaching a settlement path.
+///
+/// When the cap is reached:
+///
+/// - New distinct addresses are rejected with [`PredictXError::MaxVotersReached`]
+///   (see [`cast_vote`]); the roster is *not* silently truncated or rotated,
+///   so already-recorded votes stay intact and auditable.
+/// - The poll remains resolvable. [`auto_resolve`] only depends on the tally
+///   and the voting window, so a capped poll still settles once the window
+///   closes and the leading outcome clears
+///   [`AUTO_RESOLVE_THRESHOLD_BPS`]. A capped poll is therefore never left
+///   permanently unsettleable by community vote.
+/// - Recovery for a poll that cannot reach consensus is handled by the
+///   admin/community resolution path (tracked separately), which does not
+///   require reopening the roster.
+///
+/// # Abuse model for exhausting the roster
+///
+/// Because [`cast_vote`] does not yet gate on stake or eligibility (see the
+/// "excluding stakers" note below), an adversary can fill all [`MAX_VOTERS`]
+/// slots with sybil addresses and lock out honest voters for the remainder of
+/// the window. The cap bounds the blast radius of that griefing: it limits the
+/// roster to a fixed size, keeps every recorded vote auditable, and — crucially
+/// — does not prevent the poll from settling. Mitigating the sybil fill itself
+/// (stake-weighting, eligibility proofs, or a per-window reset) is out of scope
+/// for this change and tracked separately.
+///
 /// Flow (Checks → Effects):
 /// 1. Authenticates the caller as the voter.
 /// 2. Verifies the poll is known to the oracle, else `PollNotFound`.
@@ -118,6 +150,10 @@ pub fn cast_vote(
         return Err(PredictXError::AlreadyVoted);
     }
 
+    // Cap is window-scoped: once the roster is full, new distinct addresses
+    // are rejected for this window only. The poll still settles via
+    // `auto_resolve` (or the admin/community path), so this is not a
+    // permanent freeze. See the cap policy in `cast_vote`'s doc comment.
     if voters.len() >= MAX_VOTERS {
         return Err(PredictXError::MaxVotersReached);
     }
@@ -463,6 +499,31 @@ mod test {
 
         assert_eq!(err, Ok(PredictXError::MaxVotersReached));
         assert_eq!(client.get_voters(&1_u64).len(), MAX_VOTERS);
+    }
+
+    #[test]
+    fn capped_poll_still_reaches_settlement_path() {
+        let (env, _admin, client) = setup();
+
+        // Fill the roster to the cap with a decisive Yes majority.
+        for _ in 0..MAX_VOTERS {
+            client.cast_vote(&voter(&env), &1_u64, &VoteChoice::Yes);
+        }
+
+        // The cap is hit: a further distinct voter is rejected...
+        let err = client
+            .try_cast_vote(&voter(&env), &1_u64, &VoteChoice::Yes)
+            .expect_err("voter roster cap must be enforced");
+        assert_eq!(err, Ok(PredictXError::MaxVotersReached));
+
+        // ...but the capped poll is not frozen: it still settles once the
+        // voting window closes and consensus clears the threshold.
+        env.ledger().set_timestamp(1_000_000 + VOTING_WINDOW_SECS);
+        let outcome = client.auto_resolve(&1_u64);
+
+        assert_eq!(outcome, VoteChoice::Yes);
+        assert_eq!(client.get_poll_status(&1_u64), PollStatus::Resolved);
+        assert_eq!(client.get_poll_outcome(&1_u64), VoteChoice::Yes);
     }
 
     #[test]
