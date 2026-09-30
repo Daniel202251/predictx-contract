@@ -443,6 +443,10 @@ impl PredictionMarket {
         staking::get_user_stakes(&env, &user)
     }
 
+    pub fn get_user_stakes_paged(env: Env, user: Address, start: u32, limit: u32) -> Vec<u64> {
+        staking::get_user_stakes_paged(&env, &user, start, limit)
+    }
+
     pub fn has_user_staked(env: Env, poll_id: u64, user: Address) -> bool {
         staking::has_user_staked(&env, poll_id, &user)
     }
