@@ -2,6 +2,10 @@ I25vX3N0ZApAbW9kIHN0b3JhZ2U7Cm1vZCB2b3Rpbmc7Cgp1c2UgcHJlZGljdHhfc2hhcmVkOjp7RGF0
 I3shbm9fc3RkXQoKbW9kIHN0b3JhZ2U7Cm1vZCB2b3Rpbmc7Cgp1c2UgcHJlZGljdHhfc2hhcmVke1BvbGxTdGF0dXMsIFByZWRpY3RYRXJyb3IsIFZvdGVDaG9pY2UsIFZvdGVUYWxseSwgVk9USU5HX1dJTkRPV19TRUNTfTsKdXNlIHNvcm9iYW5fc2RrOjp7Y29udHJhY3QsIGNvbnRyYWN0aW1wbCwgY29udHJhY3R0eXBlLCBBZGRyZXNzLCBFbnYsIFZlY307CgovLy8gTWF4aW11bSBudW1iZXIgb2YgYWRtaW5zIHRoYXQgbWF5IGJlIHJlZ2lzdGVyZWQgYXQgb25jZS4KLy8vCi8vLyBLZWVwcyBgbGlzdF9hZG1pbnNgIGJvdW5kZWQgc28gaXQgY2Fubm90IGdyb3cgd2l0aG91dCBsaW1pdC4KcHViIGNvbnN0IE1BWF9BRE1JTlM6IHUzMiA9IDEwOwovLy8gTWF4aW11bSB2b3RlcnMgcmV0YWluZWQgcGVyIHBvbGw7IGtlZXBpbmcgdGhpcyBsb3cgYm91bmRzIGZ1bGwtdmVjdG9yIHJlYWRzLgpwdWIgY29uc3QgTUFYX1ZPVEVSUzogdTMyID0gNjQ7CgovLy8gTlVtYmVyIG9mIGxlZGdlcnMgYmVmb3JlIGluc3RhbmNlIFRUTCBpcyBleHRlbmRlZC4KY29uc3QgSU5TVEFOQ0VfTElGRVRJTUVfVEhSRVNIT0xEOiB1MzIgPSAxNyAqIDI4ODA7Ci8vLyBOdW1iZXIgb2YgbGVkZ2VycyB0byBleHRlbmQgaW5zdGFuY2UgVFRMIGJ5Lgpjb25zdCBJTlNUQU5DRV9CVU1QX0FNT1VOVDogdTMyID0gMzAgKiAyODgwOwoKI2NvbnRyYWN0XQpwdWIgc3RydWN0IFZvdGluZ09yYWNsZTsKCiNbY29udHJhY3R0eXBlXQojW2Rlcml2ZShDbG9uZSldCnN0cnVjdCBTdG9yZWRQb2xsU3RhdHVzIHsKICAgIHN0YXR1czogUG9sbFN0YXR1cywKICAgIHVwZGF0ZWRfYXQ6IHU2NCwKfQoKI1tjb250cmFjdHR5cGVdCiNbZGVyaXZlKENsb25lKV0KZW51bSBEYXRhS2V5IHsKICAgIEFkbWluLAogICAgLy8vIFJlZ2lzdGVyZWQgYWRtaW5zIGBWZWM8QWRkcmVzcz5gLiAoSW5zdGFuY2UpCiAgICBBZG1pbkxpc3QsCiAgICBQb2xsU3RhdHVzKHU2NCksCiAgICAvLy8gYHBvbGxfaWRgIOKGkiB2b3RlIHRhbGx5LiAoVGVtcG9yYXJ5IOKAlCBvbmx5IG5lZWRlZCBkdXJpbmcgdGhlIHZvdGluZyB3aW5kb3cpCiAgICBWb3RlVGFsbHkodTY0KSwKICAgIC8vLyBgcG9sbF9pZGAg4oaSIGF1dG9tYXRpY2FsbHkgcmVzb2x2ZWQgb3V0Y29tZS4KICAgIFBvbGxPdXRjb21lKHU2NCksCiAgICAvLy8gYHBvbGxfaWRgIOKGkiBwZXJzaXN0ZW50IHJvc3RlciBvZiB2b3RlcnMgd2hvIGNhc3QgYSB2b3RlLgogICAgVm90ZXJzKHU2NCksCiAgICAvLy8gYChwb2xsX2lkLCB2b3RlcilgIOKGkiBgYm9vbGAg4oCUIGhhcyB0aGlzIHZvdGVyIGNhc3QgYSB2b3RlPyAoVGVtcG9yYXJ5KQogICAgSGFzVm90ZWQodTY0LCBBZGRyZXNzKSwKICAgIC8vLyBgKHBvbGxfaWQsIHZvdGVyKWAg4oaSIHRoZSBjaG9pY2UgdGhlIHZvdGVyIHJlY29yZGVkLiAoUGVyc2lzdGVudCkKICAgIFZvdGVyQ2hvaWNlKHU2NCwgQWRkcmVzcyksCiAgICAvLy8gYHBvbGxfaWRgIOKGkiB2b3RlciByZXdhcmQgcmVzZXJ2ZSAodW5jbGFpbWVkIGluY2VudGl2ZSBwb29sKS4gKFBlcnNpc3RlbnQpCiAgICBSZXdhcmRQb29sKHU2NCksCiAgICAvLy8gYChwb2xsX2lkLCB2b3RlcilgIOKGkiBgaTEyOGAgcmV3YXJkIHBhaWQgdG8gYW4gZWxpZ2libGUgdm90ZXIuIChQZXJzaXN0ZW50KQogICAgVm90ZXJSZXdhcmQodTY0LCBBZGRyZXNzKSwKICAgIC8vLyBgKHBvbGxfaWQsIHZvdGVyKWAg4oaSIGBib29sYCDigJQgaGFzIHRoZSB2b3RlciBjbGFpbWVkIHRoZWlyIHJld2FyZD8gKFBlcnNpc3RlbnQpCiAgICBSZXdhcmRDbGFpbWVkKHU2NCwgQWRkcmVzcyksCn0KCmZuIGdldF9hZG1pbihlbnY6ICZFbnYpIC0+IFJlc3VsdDxBZGRyZXNzLCBQcmVkaWN0WEVycm9yPiB7CiAgICBlbnYuc3RvcmFnZSgpCiAgICAgICAgLmluc3RhbmNlKCkKICAgICAgICAuZ2V0KCZEYXRhS2V5OjpBZG1pbikKICAgICAgICAub2tfb3IoUHJlZGljdFhFcnJvcjo6Tm90SW5pdGlhbGl6ZWQpCn0KCi8vLyBFeHRlbmQgdGhlIGluc3RhbmNlIHN0b3JhZ2UgVFRMIGJ5IHRoZSBjb250cmFjdCdzIGJ1bXAgYW1vdW50LgovLy8KLy8vIENhbGxlZCBhdCB0aGUgdG9wIG9mIGV2ZXJ5IG11dGF0aW5nIGVudHJ5IHBvaW50IHNvIHRoZSBjb250cmFjdCBjYW5ub3QK Ly8vIGJlIGFyY2hpdmVkIGZyb20gaW5hY3Rpdml0eS4gUmVhZC1vbmx5IHZpZXdzIGRlbGliZXJhdGVseSBkbyBub3QgcGF5IHRoaXMuCnB1YmNhdGUgZm4gZXh0ZW5kX2luc3RhbmNlX3R0bChlbnY6ICZFbnYpIHsKICAgIGVudi5zdG9yYWdlKCkuaW5zdGFuY2UoKS5leHRlbmRfdHRsKAogICAgICAgIElOU1RBTkNFX0xJRkVUSU1FX1RIUkVTSE9MRCwKICAgICAgICBJTlNUQU5DRV9CVU1QX0FNT1VOVCwKICAgICk7Cn0KCnB1YmNhdGUgZm4gcmVhZF9wb2xsX3N0YXR1cyhlbnY6ICZFbnYsIHBvbGxfaWQ6IHU2NCkgLT4gUG9sbFN0YXR1cyB7CiAgICBsZXQgc3RvcmVkOiBPcHRpb248U3RvcmVkUG9sbFN0YXR1cz4gPSBlbnYKICAgICAgICAuc3RvcmFnZSgpCiAgICAgICAgLnBlcnNpc3RlbnQoKQogICAgICAgIC5nZXQoJkRhdGFLZXk6OlBvbGxTdGF0dXMocG9sbF9pZCkpOwoKICAgIHN0b3JlZC5tYXAofHMgfCBzLnN0YXR1cykudW53cmFwX29yKFBvbGxTdGF0dXM6OkFjdGl2ZSkKfQoKcHViKGNyYXRlKSBmbiByZWFkX3BvbGxfc3RhdHVzX3VwZGF0ZWRfYXQoZW52OiAmRW52LCBwb2xsX2lkOiB1NjQpIC0+IHU2NCB7CiAgICBlbnYuc3RvcmFnZSgpCiAgICAgICAgLnBlcnNpc3RlbnQoKQogICAgICAgIC5nZXQ6OjxEYXRhS2V5LCBTdG9yZWRQb2xsU3RhdHVzPigmRGF0YUtleTo6UG9sbFN0YXR1cyhwb2xsX2lkKSkKICAgICAgICAubWFwKHxzdG9yZWQgfCBzdG9yZWQudXBkYXRlZF9hdCkKICAgICAgICAudW53cmFwX29yKDApCn0KCiNbY29udHJhY3RpbXBsXQppbXBsIFZvdGluZ09yYWNsZSB7CiAgICBwdWIgZm4gaW5pdGlhbGl6ZShlbnY6IEVudiwgYWRtaW46IEFkZHJlc3MpIC0+IFJlc3VsdDwoKSwgUHJlZGljdFhFcnJvcj4gewogICAgICAgIGV4dGVuZF9pbnN0YW5jZV90dGwoJmVudik7CiAgICAgICAgaWYgZW52LnN0b3JhZ2UoKS5pbnN0YW5jZSgpLmhhcygmRGF0YUtleTo6QWRtaW4pIHsKICAgICAgICAgICAgcmV0dXJuIEVycihQcmVkaWN0WEVycm9yOjpBbHJlYWR5SW5pdGlhbGl6ZWQpOwogICAgICAgIH0KICAgICAgICBhZG1pbi5yZXF1aXJlX2F1dGgoKTsKCiAgICAgICAgZW52LnN0b3JhZ2UoKS5pbnN0YW5jZSgpLnNldCgmRGF0YUtleTo6QWRtaW4sICZhZG1pbik7CgogICAgICAgIC8vIFNlZWQgdGhlIG11bHRpLWFkbWluIHJlZ2lzdHJ5IHdpdGggdGhlIGluaXRpYWwgYWRtaW4uCiAgICAgICAgbGV0IG11dCBhZG1pbnM6IFZlYzxBZGRyZXNzPiA9IFZlYzo6bmV3KCZlbnYpOwogICAgICAgIGFkbWlucy5wdXNoX2JhY2soYWRtaW4pOwogICAgICAgIGVudi5zdG9yYWdlKCkuaW5zdGFuY2UoKS5zZXQoJkRhdGFLZXk6OkFkbWluTGlzdCwgJmFkbWlucyk7CgogICAgICAgIE9rKCkKICAgIH0KCiAgICBwdWIgZm4gYWRtaW4oZW52OiBFbnYpIC0+IFJlc3VsdDxBZGRyZXNzLCBQcmVkaWN0WEVycm9yPiB7CiAgICAgICAgZ2V0X2FkbWluKCZlbnYpCiAgICB9CgogICAgLy8vIFJlZ2lzdGVyIGBuZXdfYWRtaW5gIGluIHRoZSBtdWx0aS1hZG1pbiByZWdpc3RyeS4KICAgIC8vLwogICAgLy8vIE9ubHkgYW4gZXhpc3RpbmcgYWRtaW4gbWF5IGNhbGwgdGhpcy4gUmV0dXJucyBgQWRtaW5BbHJlYWR5UmVnaXN0ZXJlZGAKICAgIC8vLyBpZiB0aGUgYWRkcmVzcyBpcyBhbHJlYWR5IHJlZ2lzdGVyZWQuCiAgICBwdWIgZm4gYWRkX2FkbWluKGVudjogRW52LCBjYWxsZXI6IEFkZHJlc3MsIG5ld19hZG1pbjogQWRkcmVzcykgLT4gUmVzdWx0PCgpLCBQcmVkaWN0WEVycm9yPiB7CiAgICAgICAgZXh0ZW5kX2luc3RhbmNlX3R0bCgmZW52KTsKICAgICAgICBzdG9yYWdlOjpyZXF1aXJlX2FkbWluKCZlbnYsICZjYWxsZXIpPzsKICAgICAgICBjYWxsZXIucmVxdWlyZV9hdXRoKCk7CgogICAgICAgIGxldCBtdXQgYWRtaW5zID0gc3RvcmFnZTo6cmVhZF9hZG1pbnMoJmVudik7CiAgICAgICAgaWYgYWRtaW5zLmNvbnRhaW5zKG5ld19hZG1pbi5jbG9uZSgpKSB7CiAgICAgICAgICAgIHJldHVybiBFcnIoUHJlZGljdFhFcnJvcjo6QWRtaW5BbHJlYWR5UmVnaXN0ZXJlZCk7CiAgICAgICAgfQogICAgICAgIGlmIGFkbWlucy5sZW4oKSA+PSBNQVhfQURNSU5TIHsKICAgICAgICAgICAgcmV0dXJuIEVycihQcmVkaWN0WEVycm9yOjpBZG1pbkFscmVhZHlSZWdpc3RlcmVkKTsKICAgICAgICB9CgogICAgICAgIGFkbWlucy5wdXNoX2JhY2sobmV3X2FkbWluKTsKICAgICAgICBzdG9yYWdlOjp3cml0ZV9hZG1pbnMoJmVudiwgJmFkbWlucyk7CiAgICAgICAgT2soKQogICAgfQoKICAgIC8vLyBSZW1vdmUgYGFkbWluYCBmcm9tIHRoZSBtdWx0aS1hZG1pbiByZWdpc3RyeS4KICAgIC8vLwogICAgLy8vIE9ubHkgYW4gZXhpc3RpbmcgYWRtaW4gbWF5IGNhbGwgdGhpcy4gVGhlIGxhc3QgcmVtYWluaW5nIGFkbWluIGNhbm5vdAogICAgLy8vIGJlIHJlbW92ZWQuCiAgICBwdWIgZm4gcmVtb3ZlX2FkbWluKGVudjogRW52LCBjYWxsZXI6IEFkZHJlc3MsIGFkbWluOiBBZGRyZXNzKSAtPiBSZXN1bHQ8KCksIFByZWRpY3RYRXJyb3I+IHsKICAgICAgICBleHRlbmRfaW5zdGFuY2VfdHRsKCZlbnYpOwogICAgICAgIHN0b3JhZ2U6OnJlcXVpcmVfYWRtaW4oJmVudiwgJmNhbGxlcik/OwogICAgICAgIGNhbGxlci5yZXF1aXJlX2F1dGgoKTsKCiAgICAgICAgbGV0IGFkbWlucyA9IHN0b3JhZ2U6OnJlYWRfYWRtaW5zKCZlbnYpOwogICAgICAgIGlmIGFkbWlucy5sZW4oKSA8PSAxIHsKICAgICAgICAgICAgcmV0dXJuIEVycihQcmVkaWN0WEVycm9yOjpVbmF1dGhvcml6ZWQpOwogICAgICAgIH0KCiAgICAgICAgbGV0IG11dCBmb3VuZCA9IGZhbHNlOwogICAgICAgIGxldCBtdXQgdXBkYXRlZDogVmVjPEFkZHJlc3M+ID0gVmVjOjpuZXcoJmVudik7CiAgICAgICAgZm9yIGkgaW4gMC4uYWRtaW5zLmxlbigpIHsKICAgICAgICAgICAgbGV0IGEgPSBhZG1pbnMuZ2V0KGkpLnVud3JhcCgpOwogICAgICAgICAgICBpZiBhID09IGFkbWluIHsKICAgICAgICAgICAgICAgIGZvdW5kID0gdHJ1ZTsKICAgICAgICAgICAgfSBlbHNlIHsKICAgICAgICAgICAgICAgIHVwZGF0ZWQucHVzaF9iYWNrKGEpOwogICAgICAgICAgICB9CiAgICAgICAgfQoKICAgICAgICBpZiAhZm91bmQgewogICAgICAgICAgICByZXR1cm4gRXJyKFByZWRpY3RYRXJyb3I6OlVuYXV0aG9yaXplZCk7CiAgICAgICAgfQoKICAgICAgICBzdG9yYWdlOjp3cml0ZV9hZG1pbnMoJmVudiwgJnVwZGF0ZWQpOwogICAgICAgIE9rKCkKICAgIH0KCiAgICAvLy8gUmV0dXJucyBgdHJ1ZWAgaWYgYGFkZHJgIGlzIGEgcmVnaXN0ZXJlZCBhZG1pbi4KICAgIHB1YiBmbiBpc19hZG1pbihlbnY6IEVudiwgYWRkcjogQWRkcmVzcykgLT4gYm9vbCB7CiAgICAgICAgc3RvcmFnZTo6cmVhZF9hZG1pbnMoJmVudikuY29udGFpbnMoYWRkcikKICAgIH0KCiAgICAvLy8gUmV0dXJucyBhbGwgcmVnaXN0ZXJlZCBhZG1pbnMuCiAgICBwdWIgZm4gbGlzdF9hZG1pbnMoZW52OiBFbnYpIC0+IFZlYzxBZGRyZXNzPiB7CiAgICAgICAgc3RvcmFnZTo6cmVhZF9hZG1pbnMoJmVudikKICAgIH0KCiAgICAvLy8gUGxhY2Vob2xkZXIgb3JhY2xlIHN0YXRlIHNldHRlci4KICAgIC8vLwogICAgLy8vIFRoaXMgZXhpc3RzIG9ubHkgdG8gdmFsaWRhdGUgY3Jvc3MtY29udHJhY3QgaW52b2NhdGlvbiBwYXR0ZXJucyBkdXJpbmcKICAgIC8vLyBQaGFzZSAxIHNjYWZmb2xkaW5nLgogICAgcHViIGZuIHNldF9wb2xsX3N0YXR1cygKICAgICAgICBlbnY6IEVudiwKICAgICAgICBwb2xsX2lkOiB1NjQsCiAgICAgICAgc3RhdHVzOiBQb2xsU3RhdHVzLAogICAgKSAtPiBSZXN1bHQ8KCksIFByZWRpY3RYRXJyb3I+IHsKICAgICAgICBleHRlbmRfaW5zdGFuY2VfdHRsKCZlbnYpOwogICAgICAgIGxldCBhZG1pbiA9IGdldF9hZG1pbigmZW52KT87CiAgICAgICAgYWRtaW4ucmVxdWlyZV9hdXRoKCk7CgogICAgICAgIGxldCBzdG9yZWQgPSBTdG9yZWRQb2xsU3RhdHVzIHsKICAgICAgICAgICAgc3RhdHVzLAogICAgICAgICAgICB1cGRhdGVkX2F0OiBlbnYubGVkZ2VyKCkudGltZXN0YW1wKCksCiAgICAgICAgfTsKCiAgICAgICAgZW52LnN0b3JhZ2UoKQogICAgICAgICAgICAucGVyc2lzdGVudCgpCiAgICAgICAgICAgIC5zZXQoJkRhdGFLZXk6OlBvbGxTdGF0dXMocG9sbF9pZCksICZzdG9yZWQpOwogICAgICAgIE9rKCkKICAgIH0KCiAgICAvLy8gUGxhY2Vob2xkZXIgb3JhY2xlIHF1ZXJ5IHVzZWQgYnkgYFByZWRpY3Rpb25NYXJrZXRgLgogICAgcHViIGZuIGdldF9wb2xsX3N0YXR1cyhlbnY6IEVudiwgcG9sbF9pZDogdTY0KSAtPiBQb2xsU3RhdHVzIHsKICAgICAgICByZWFkX3BvbGxfc3RhdHVzKCZlbnYsIHBvbGxfaWQpCiAgICB9CgogICAgcHViIGZuIGdldF9wb2xsX3N0YXR1c191cGRhdGVkX2F0KGVudjogRW52LCBwb2xsX2lkOiB1NjQpIC0+IHU2NCB7CiAgICAgICAgcmVhZF9wb2xsX3N0YXR1c191cGRhdGVkX2F0KCZlbnYsIHBvbGxfaWQpCiAgICB9CgogICAgLy8vIFJldHVybiB0aGUgdm90ZXJzIHdobyBoYXZlIGNhc3QgYSB2b3RlIG9uIGBwb2xsX2lkYC4KICAgIHB1YiBmbiBnZXRfdm90ZXJzKGVudjogRW52LCBwb2xsX2lkOiB1NjQpIC0+IFZlYzxBZGRyZXNzPiB7CiAgICAgICAgc3RvcmFnZTo6cmVhZF92b3RlcnMoJmVudiwgcG9sbF9pZCkKICAgIH0KCiAgICAvLy8gUmV0dXJucyB3aGV0aGVyIGB2b3RlcmAgaGFzIGFscmVhZHkgdm90ZWQgb24gYSBrbm93biBwb2xsLgogICAgcHViIGZuIGhhc192b3RlZChlbnY6IEVudiwgcG9sbF9pZDogdTY0LCB2b3RlcjogQWRkcmVzcykgLT4gYm9vbCB7CiAgICAgICAgaWYgIWVudgogICAgICAgICAgICAuc3RvcmFnZSgpCiAgICAgICAgICAgIC5wZXJzaXN0ZW50KCkKICAgICAgICAgICAgLmhhcygmRGF0YUtleTo6UG9sbFN0YXR1cyhwb2xsX2lkKSkKICAgICAgICB7CiAgICAgICAgICAgIHJldHVybiBmYWxzZTsKICAgICAgICB9CgogICAgICAgIHN0b3JhZ2U6Omhhc192b3RlZCgmZW52LCBwb2xsX2lkLCAmdm90ZXIpCiAgICAgICAgICAgIHx8IHN0b3JhZ2U6OnJlYWRfdm90ZXJzKCZlbnYsIHBvbGxfaWQpLmNvbnRhaW5zKHZvdGVyKQogICAgfQoKICAgIC8vLyBSZXR1cm5zIHdoZXRoZXIgYHZvdGVyYCBjYW4gY2FzdCBhIHZvdGUgb24gYHBvbGxfaWRgIHJpZ2h0IG5vdy4KICAgIC8vLwogICAgLy8vIFVua25vd24gcG9sbHMsIHBvbGxzIG91dHNpZGUgdGhlIHZvdGluZyB3aW5kb3csIHJlcGVhdCB2b3RlcnMsIGFuZCBwb2xscwogICAgLy8vIGF0IHRoZSB2b3RlciBsaW1pdCBhcmUgaW5lbGlnaWJsZS4gU3Rha2VyIGV4Y2x1c2lvbiBpcyBoYW5kbGVkIHNlcGFyYXRlbHkuCiAgICBwdWIgZm4gY2FuX3ZvdGUoZW52OiBFbnYsIHBvbGxfaWQ6IHU2NCwgdm90ZXI6IEFkZHJlc3MpIC0+IGJvb2wgewogICAgICAgIGlmICFlbnYKICAgICAgICAgICAgLnN0b3JhZ2UoKQogICAgICAgICAgICAucGVyc2lzdGVudCgpCiAgICAgICAgICAgIC5oYXMoJkRhdGFLZXk6OlBvbGxTdGF0dXMocG9sbF9pZCkpCiAgICAgICAgICAgIHx8IHJlYWRfcG9sbF9zdGF0dXMoJmVudiwgcG9sbF9pZCkgIT0gUG9sbFN0YXR1czo6Vm90aW5nCiAgICAgICAgewogICAgICAgICAgICByZXR1cm4gZmFsc2U7CiAgICAgICAgfQoKICAgICAgICBsZXQgdm90aW5nX2VuZF90aW1lID0gcmVhZF9wb2xsX3N0YXR1c191cGRhdGVkX2F0KCZlbnYsIHBvbGxfaWQpCiAgICAgICAgICAgIC5jaGVja2VkX2FkZChWT1RJTkdfV0lORE9XX1NFQ1MpCiAgICAgICAgICAgIC51bndyYXBfb3IoMCk7CiAgICAgICAgaWYgZW52LmxlZGdlcigpLnRpbWVzdGFtcCgpID49IHZvdGluZ19lbmRfdGltZQogICAgICAgICAgICB8fCBTZWxmOjpoYXNfdm90ZWQoZW52LmNsb25lKCksIHBvbGxfaWQsIHZvdGVyKQogICAgICAgICAgICB8fCBzdG9yYWdlOjpyZWFkX3ZvdGVycygmZW52LCBwb2xsX2lkKS5sZW4oKSA+PSBNQVhfVk9URVJTCiAgICAgICAgewogICAgICAgICAgICByZXR1cm4gZmFsc2U7CiAgICAgICAgfQoKICAgICAgICB0cnVlCiAgICB9CgogICAgLy8vIFJlY29yZCBhIHZvdGVyJ3MgY2hvaWNlIG9uIGEgcG9sbC4KICAgIHB1YiBmbiBjYXN0X3ZvdGUoCiAgICAgICAgZW52OiBFbnYsCiAgICAgICAgdm90ZXI6IEFkZHJlc3MsCiAgICAgICAgcG9sbF9pZDogdTY0LAogICAgICAgIGNob2ljZTogVm90ZUNob2ljZSwKICAgICkgLT4gUmVzdWx0PFZvdGVUYWxseSwgUHJlZGljdFhFcnJvcj4gewogICAgICAgIGV4dGVuZF9pbnN0YW5jZV90dGwoJmVudik7CiAgICAgICAgdm90aW5nOjpjYXN0X3ZvdGUoJmVudiwgdm90ZXIsIHBvbGxfaWQsIGNob2ljZSkKICAgIH0KCiAgICBwdWIgZm4gYXV0b19yZXNvbHZlKGVudjogRW52LCBwb2xsX2lkOiB1NjQpIC0+IFJlc3VsdDxWb3RlQ2hvaWNlLCBQcmVkaWN0WEVycm9yPiB7CiAgICAgICAgZXh0ZW5kX2luc3RhbmNlX3R0bCgmZW52KTsKICAgICAgICB2b3Rpbmc6OmF1dG9fcmVzb2x2ZSgmZW52LCBwb2xsX2lkKQogICAgfQoKICAgIHB1YiBmbiBnZXRfcG9sbF9vdXRjb21lKGVudjogRW52LCBwb2xsX2lkOiB1NjQpIC0+IFJlc3VsdDxWb3RlQ2hvaWNlLCBQcmVkaWN0WEVycm9yPiB7CiAgICAgICAgZW52LnN0b3JhZ2UoKQogICAgICAgICAgICAucGVyc2lzdGVudCgpCiAgICAgICAgICAgIC5nZXQoJkRhdGFLZXk6OlBvbGxPdXRjb21lKHBvbGxfaWQpKQogICAgICAgICAgICAub2tfb3IoUHJlZGljdFhFcnJvcjo6UG9sbE5vdEZvdW5kKQogICAgfQoKICAgIC8vLyBTZXQgKGZ1bmQpIHRoZSB2b3RlciByZXdhcmQgcmVzZXJ2ZSBmb3IgYHBvbGxfaWRgLiBBZG1pbiBvbmx5LgogICAgLy8vCiAgICAvLy8gVGhlIHBvbGljeSBmb3IgaG93IGxhcmdlIHRoZSByZXNlcnZlIHNob3VsZCBiZSBpcyBkZWxpYmVyYXRlbHkgb3V0IG9mCiAgICAvLy8gc2NvcGUgaGVyZTsgdGhpcyBvbmx5IHJlY29yZHMgdGhlIGFtb3VudCB0aGF0IGBjbGFpbV9yZXdhcmRgIGRpdmlkZXMKICAgIC8vLyBhbW9uZyB0aGUgZWxpZ2libGUgKHdpbm5pbmcpIHZvdGVycy4KICAgIHB1YiBmbiBzZXRfcmV3YXJkX3Bvb2woCiAgICAgICAgZW52OiBFbnYsCiAgICAgICAgY2FsbGVyOiBBZGRyZXNzLAogICAgICAgIHBvbGxfaWQ6IHU2NCwKICAgICAgICBhbW91bnQ6IGkxMjgsCiAgICApIC0+IFJlc3VsdDwoKSwgUHJlZGljdFhFcnJvcj4gewogICAgICAgIGV4dGVuZF9pbnN0YW5jZV90dGwoJmVudik7CiAgICAgICAgdm90aW5nOjpzZXRfcmV3YXJkX3Bvb2woJmVudiwgY2FsbGVyLCBwb2xsX2lkLCBhbW91bnQpCiAgICB9CgogICAgLy8vIENsYWltIHRoZSBjYWxsZXIncyB2b3RlciByZXdhcmQgZm9yIGBwb2xsX2lkYC4KICAgIC8vLwogICAgLy8vIE9ubHkgdm90ZXJzIHdobyBiYWNrZWQgdGhlIHJlc29sdmVkIHdpbm5pbmcgb3V0Y29tZSBtYXkgY2xhaW07IHRoZSBwb29sCiAgICAvLy8gaXMgc3BsaXQgZXZlbmx5IGFjcm9zcyB0aG9zZSBlbGlnaWJsZSB2b3RlcnMuCiAgICBwdWIgZm4gY2xhaW1fcmV3YXJkKGVudjogRW52LCB2b3RlcjogQWRkcmVzcywgcG9sbF9pZDogdTY0KSAtPiBSZXN1bHQ8aTEyOCwgUHJlZGljdFhFcnJvcj4gewogICAgICAgIGV4dGVuZF9pbnN0YW5jZV90dGwoJmVudik7CiAgICAgICAgdm90aW5nOjpjbGFpbV9yZXdhcmQoJmVudiwgdm90ZXIsIHBvbGxfaWQpCiAgICB9CgogICAgLy8vIFRoZSBjaG9pY2UgYHZvdGVyYCByZWNvcmRlZCBvbiBgcG9sbF9pZGAsIGlmIHRoZXkgdm90ZWQuCiAgICBwdWIgZm4gZ2V0X3ZvdGVyX2Nob2ljZShlbnY6IEVudiwgcG9sbF9pZDogdTY0LCB2b3RlcjogQWRkcmVzcykgLT4gT3B0aW9uPFZvdGVDaG9pY2U+IHsKICAgICAgICBzdG9yYWdlOjpyZWFkX3ZvdGVfY2hvaWNlKCZlbnYsIHBvbGxfaWQsICZ2b3RlcikKICAgIH0KCiAgICAvLy8gVGhlIHZvdGVyIHJld2FyZCByZXNlcnZlIHNldCBmb3IgYHBvbGxfaWRgICgwIHdoZW4gdW5zZXQpLgogICAgcHViIGZuIGdldF9yZXdhcmRfcG9vbChlbnY6IEVudiwgcG9sbF9pZDogdTY0KSAtPiBpMTI4IHsKICAgICAgICBzdG9yYWdlOjpyZWFkX3Jld2FyZF9wb29sKCZlbnYsIHBvbGxfaWQpCiAgICB9CgogICAgLy8vIFdoZXRoZXIgYHZvdGVyYCBoYXMgYWxyZWFkeSBjbGFpbWVkIHRoZWlyIGBwb2xsX2lkYCByZXdhcmQuCiAgICBwdWIgZm4gaGFzX2NsYWltZWRfcmV3YXJkKGVudjogRW52LCBwb2xsX2lkOiB1NjQsIHZvdGVyOiBBZGRyZXNzKSAtPiBib29sIHsKICAgICAgICBzdG9yYWdlOjpoYXNfY2xhaW1lZF9yZXdhcmQoJmVudiwgcG9sbF9pZCwgJnZvdGVyKQogICAgfQp9CgojW2NmZyh0ZXN0KV0KZXh0ZXJuIGNyYXRlIHN0ZDsKCiNbY2ZnKHRlc3QpXQptb2QgdGVzdCB7CiAgICB1c2Ugc3VwZXI6Oio7CiAgICB1c2Ugc29yb2Jhbl9zZGs6OnRlc3R1dGlsczo6QWRkcmVzcyBhc18fOwoKICAgICNbdGVzdF0KICAgIGZuIHNldF9hbmRfZ2V0X3N0YXR1cygpIHsKICAgICAgICBsZXQgZW52ID0gRW52OjpkZWZhdWx0KCk7CiAgICAgICAgZW52Lm1vY2tfYWxsX2F1dGhzKCk7CgogICAgICAgIGxldCBjb250cmFjdF9pZCA9IGVudi5yZWdpc3RlcihWb3RpbmdPcmFjbGUsICgpKTsKICAgICAgICBsZXQgY2xpZW50ID0gVm90aW5nT3JhY2xlQ2xpZW50OjpuZXcoJmVudiwgJmNvbnRyYWN0X2lkKTsKCiAgICAgICAgbGV0IGFkbWluID0gQWRkcmVzczo6Z2VuZXJhdGUoJmVudik7CiAgICAgICAgY2xpZW50LmluaXRpYWxpemUoJmFkbWluKTsKCiAgICAgICAgY2xpZW50LnNldF9wb2xsX3N0YXR1cygmNDJfdTY0LCAmUG9sbFN0YXR1czo6UmVzb2x2ZWQpOwogICAgICAgIGFzc2VydF9lcSEoY2xpZW50LmdldF9wb2xsX3N0YXR1cygmNDJfdTY0KSwgUG9sbFN0YXR1czo6UmVzb2x2ZWQpOwogICAgfQoKICAgICNbdGVzdF0KICAgIGZuIHZvdGluZ192aWV3c19yZXR1cm5fZmFsc2VfZm9yX3Vua25vd25fcG9sbCgpIHsKICAgICAgICBsZXQgKGVudiwgX2FkbWluLCBjbGllbnQpID0gc2V0dXAoKTsKICAgICAgICBsZXQgdm90ZXIgPSBBZGRyZXNzOjpnZW5lcmF0ZSgmZW52KTsKCiAgICAgICAgYXNzZXJ0ISghY2xpZW50Lmhhc192b3RlZCgmOTlfdTY0LCAmdm90ZXIpKTsKICAgICAgICBhc3NlcnQhKCFjbGllbnQuY2FuX3ZvdGUoJjk5X3U2NCwgJnZvdGVyKSk7CiAgICB9CgogICAgI1t0ZXN0XQogICAgZm4gdm90aW5nX3ZpZXdzX3RyYWNrX3ZvdGVfYW5kX2R1cGxpY2F0ZV9lbGlnaWJpbGl0eSgpIHsKICAgICAgICBsZXQgKGVudiwgX2FkbWluLCBjbGllbnQpID0gc2V0dXAoKTsKICAgICAgICBsZXQgdm90ZXIgPSBBZGRyZXNzOjpnZW5lcmF0ZSgmZW52KTsKICAgICAgICBjbGllbnQuc2V0X3BvbGxfc3RhdHVzKCYxX3U2NCwgJlBvbGxTdGF0dXM6OlZvdGluZyk7CgogICAgICAgIGFzc2VydCEoIWNsaWVudC5oYXNfdm90ZWQoJjFfdTY0LCAmdm90ZXIpKTsKICAgICAgICBhc3NlcnQhKGNsaWVudC5jYW5fdm90ZSgmMV91NjQsICZ2b3RlcikpOwoKICAgICAgICBjbGllbnQuY2FzdF92b3RlKCZ2b3RlciwgJjFfdTY0LCAmVm90ZUNob2ljZTo6WWVzKTsKCiAgICAgICAgYXNzZXJ0IShjbGllbnQuaGFzX3ZvdGVkKCYxX3U2NCwgJnZvdGVyKSk7CiAgICAgICAgYXNzZXJ0ISghY2xpZW50LmNhbl92b3RlKCYxX3U2NCwgJnZvdGVyKSk7CiAgICB9CgogICAgI1t0ZXN0XQogICAgZm4gY2FuX3ZvdGVfcmVqZWN0c191bm9wZW5lZF9hbmRfZXhwaXJlZF9wb2xscygpIHsKICAgICAgICBsZXQgKGVudiwgX2FkbWluLCBjbGllbnQpID0gc2V0dXAoKTsKICAgICAgICBsZXQgdm90ZXIgPSBBZGRyZXNzOjpnZW5lcmF0ZSgmZW52KTsKCiAgICAgICAgY2xpZW50LnNldF9wb2xsX3N0YXR1cygmMl91NjQsICZQb2xsU3RhdHVzOjpBY3RpdmUpOwogICAgICAgIGFzc2VydCEoIWNsaWVudC5jYW5fdm90ZSgmMl91NjQsICZ2b3RlcikpOwoKICAgICAgICBjbGllbnQuc2V0X3BvbGxfc3RhdHVzKCYzX3U2NCwgJlBvbGxTdGF0dXM6OlZvdGluZyk7CiAgICAgICAgZW52LmxlZGdlcigpCiAgICAgICAgICAgIC53aXRoX211dCh8bGVkZ2VyfCBsZWRnZXIudGltZXN0YW1wICs9IFZPVElOR19XSU5ET1dfU0VDUyk7CiAgICAgICAgYXNzZXJ0ISghY2xpZW50LmNhbl92b3RlKCYzX3U2NCwgJnZvdGVyKSk7CiAgICB9CgogICAgI1t0ZXN0XQogICAgZm4gZXh0ZW5kX2luc3RhbmNlX3R0bF9idW1wc19vbl9tdXRhdGlvbigpIHsKICAgICAgICBsZXQgKGVudiwgX2FkbWluLCBjbGllbnQpID0gc2V0dXAoKTsKCiAgICAgICAgLy8gQWR2YW5jZSB0aGUgbGVkZ2VyIGZhciBlbm91Z2ggdGhhdCB0aGUgaW5zdGFuY2UgVFRMIGlzIG5lYXIgZXhwaXJ5LgogICAgICAgIGVudi5sZWRnZXIoKS53aXRoX211dCh8bGVkZ2VyfCBsZWRnZXIuc2VxdWVuY2UgKz0gSU5TVEFOQ0VfTElGRVRJTUVfVEhSRVNIT0xEKTsKCiAgICAgICAgLy8gQSBtdXRhdGluZyBjYWxsIG11c3Qga2VlcCB0aGUgaW5zdGFuY2UgYWxpdmUuCiAgICAgICAgY2xpZW50LnNldF9wb2xsX3N0YXR1cygmN191NjQsICZQb2xsU3RhdHVzOjpWb3RpbmcpOwoKICAgICAgICAvLyBSZWFkLW9ubHkgdmlld3Mgc3RpbGwgd29yayBhZnRlciB0aGUgZXh0ZW5zaW9uLgogICAgICAgIGFzc2VydF9lcSEoY2xpZW50LmdldF9wb2xsX3N0YXR1cygmN191NjQpLCBQb2xsU3RhdHVzOjpWb3RpbmcpOwogICAgfQoKICAgIGZuIHNldHVwKCkgLT4gKEVudiwgQWRkcmVzcywgVm90aW5nT3JhY2xlQ2xpZW50PCdzdGF0aWM+KSB7CiAgICAgICAgbGV0IGVudiA9IEVudjo6ZGVmYXVsdCgpOwogICAgICAgIGVudi5tb2NrX2FsbF9hdXRocygpOwoKICAgICAgICBsZXQgY29udHJhY3RfaWQgPSBlbnYucmVnaXN0ZXIoVm90aW5nT3JhY2xlLCAoKSk7CiAgICAgICAgbGV0IGNsaWVudCA9IFZvdGluZ09yYWNsZUNsaWVudDo6bmV3KCZlbnYsICZjb250cmFjdF9pZCk7CgogICAgICAgIGxldCBhZG1pbiA9IEFkZHJlc3M6OmdlbmVyYXRlKCZlbnYpOwogICAgICAgIGNsaWVudC5pbml0aWFsaXplKCZhZG1pbik7CgogICAgICAgIChlbnYsIGFkbWluLCBjbGllbnQpCiAgICB9CgogICAgI1t0ZXN0XQogICAgZm4gaW5pdGlhbGl6ZV9zZWVkc19hZG1pbl9yZWdpc3RyeSgpIHsKICAgICAgICBsZXQgKGVudiwgYWRtaW4sIGNsaWVudCkgPSBzZXR1cCgpOwoKICAgICAgICBhc3NlcnQhKGNsaWVudC5pc19hZG1pbigmYWRtaW4pKTsKCiAgICAgICAgbGV0IG11dCBleHBlY3RlZDogVmVjPEFkZHJlc3M+ID0gVmVjOjpuZXcoJmVudik7CiAgICAgICAgZXhwZWN0ZWQucHVzaF9iYWNrKGFkbWluKTsKICAgICAgICBhc3NlcnRfZXEhKGNsaWVudC5saXN0X2FkbWlucygpLCBleHBlY3RlZCk7CiAgICB9Cn0K
 #![no_std]
 
+mod voting;
+
+use predictx_shared::{PollStatus, PredictXError};
+use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, String};
 use predictx_shared::{PollStatus, PredictXError, VoteTally};
 use soroban_sdk::{contract, contractimpl, contracttype, Address, Env};
 mod storage;
@@ -22,18 +26,22 @@ pub struct VotingOracle;
 
 #[contracttype]
 #[derive(Clone)]
-struct StoredPollStatus {
-    status: PollStatus,
-    updated_at: u64,
+pub(crate) struct StoredPollStatus {
+    pub(crate) status: PollStatus,
+    pub(crate) updated_at: u64,
 }
 
 #[contracttype]
 #[derive(Clone)]
-enum DataKey {
+pub(crate) enum DataKey {
     Admin,
     /// Registered admins `Vec<Address>`. (Instance)
     AdminList,
     PollStatus(u64),
+    /// `poll_id` → `VoteTally`. (Temporary — only needed during voting window)
+    VoteTally(u64),
+    /// `poll_id` → IPFS evidence hash `String`. (Temporary — alongside tally)
+    VotingEvidence(u64),
     Tally(u64),
     /// `poll_id` → vote tally. (Temporary — only needed during the voting window)
     VoteTally(u64),
@@ -308,6 +316,16 @@ impl VotingOracle {
         storage::has_claimed_reward(&env, poll_id, &voter)
     }
 
+    /// Opens a two-hour community voting window for a finished poll.
+    ///
+    /// Delegates to [`voting::initiate_voting`].
+    pub fn initiate_voting(
+        env: Env,
+        admin: Address,
+        poll_id: u64,
+        evidence_hash: String,
+    ) -> Result<(), PredictXError> {
+        voting::initiate_voting(env, admin, poll_id, evidence_hash)
     /// Read the aggregated community vote tally for `poll_id`.
     ///
     /// Returns [`PredictXError::PollNotFound`] when no tally has been recorded
@@ -325,9 +343,21 @@ mod test {
     use super::*;
     use soroban_sdk::testutils::{Address as _, Ledger};
 
+    fn setup_env() -> (soroban_sdk::Env, Address, VotingOracleClient<'static>) {
+        let env = soroban_sdk::Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register(VotingOracle, ());
+        let client = VotingOracleClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+        client.initialize(&admin);
+        // SAFETY: the Env outlives this test frame; the client borrows it.
+        let client: VotingOracleClient<'static> = unsafe { core::mem::transmute(client) };
+        (env, admin, client)
+    }
+
     #[test]
     fn set_and_get_status() {
-        let env = Env::default();
+        let env = soroban_sdk::Env::default();
         env.mock_all_auths();
 
         let contract_id = env.register(VotingOracle, ());
@@ -340,6 +370,140 @@ mod test {
         assert_eq!(client.get_poll_status(&42_u64), PollStatus::Resolved);
     }
 
+    // ── initiate_voting tests ─────────────────────────────────────────────────
+
+    /// Happy path: tally is stored with the correct end-time and zeroed counts,
+    /// and poll status transitions to `Voting`.
+    #[test]
+    fn test_initiate_voting_happy_path() {
+        let env = soroban_sdk::Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register(VotingOracle, ());
+        let client = VotingOracleClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+        client.initialize(&admin);
+
+        env.ledger().set_timestamp(1_000_000);
+
+        client.initiate_voting(
+            &admin,
+            &1_u64,
+            &soroban_sdk::String::from_str(&env, "ipfs://QmEvidence1"),
+        );
+
+        // Tally must exist in temporary storage with correct fields.
+        let tally: predictx_shared::VoteTally = env
+            .storage()
+            .temporary()
+            .get(&DataKey::VoteTally(1))
+            .expect("VoteTally should be stored");
+
+        assert_eq!(
+            tally.voting_end_time,
+            1_000_000 + predictx_shared::VOTING_WINDOW_SECS,
+            "voting_end_time must be exactly now + VOTING_WINDOW_SECS"
+        );
+        assert_eq!(tally.yes_votes, 0);
+        assert_eq!(tally.no_votes, 0);
+        assert_eq!(tally.unclear_votes, 0);
+        assert_eq!(tally.total_voters, 0);
+        assert_eq!(tally.reward_pool, 0);
+
+        // Poll status must be Voting.
+        assert_eq!(client.get_poll_status(&1_u64), PollStatus::Voting);
+    }
+
+    /// `voting_end_time` must be exactly `start + 7200` (two hours).
+    #[test]
+    fn test_voting_end_time_is_exactly_two_hours() {
+        let env = soroban_sdk::Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register(VotingOracle, ());
+        let client = VotingOracleClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+        client.initialize(&admin);
+
+        let start_ts: u64 = 5_000_000;
+        env.ledger().set_timestamp(start_ts);
+
+        client.initiate_voting(
+            &admin,
+            &2_u64,
+            &soroban_sdk::String::from_str(&env, "ipfs://evidence2"),
+        );
+
+        let tally: predictx_shared::VoteTally = env
+            .storage()
+            .temporary()
+            .get(&DataKey::VoteTally(2))
+            .unwrap();
+
+        assert_eq!(
+            tally.voting_end_time,
+            start_ts + 7_200,
+            "window must be exactly 7200 seconds (2 hours)"
+        );
+    }
+
+    /// A non-admin caller must be rejected with `Unauthorized`.
+    #[test]
+    fn test_non_admin_gets_unauthorized() {
+        let env = soroban_sdk::Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register(VotingOracle, ());
+        let client = VotingOracleClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+        client.initialize(&admin);
+
+        env.ledger().set_timestamp(1_000_000);
+
+        let imposter = Address::generate(&env);
+
+        let result = client.try_initiate_voting(
+            &imposter,
+            &3_u64,
+            &soroban_sdk::String::from_str(&env, "fake"),
+        );
+
+        assert_eq!(
+            result,
+            Err(Ok(PredictXError::Unauthorized)),
+            "non-admin must get Unauthorized"
+        );
+    }
+
+    /// Calling `initiate_voting` twice for the same poll must return
+    /// `PollAlreadyResolved` on the second call.
+    #[test]
+    fn test_double_initiate_gets_poll_already_resolved() {
+        let env = soroban_sdk::Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register(VotingOracle, ());
+        let client = VotingOracleClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+        client.initialize(&admin);
+
+        env.ledger().set_timestamp(1_000_000);
+
+        // First call — must succeed.
+        client.initiate_voting(
+            &admin,
+            &4_u64,
+            &soroban_sdk::String::from_str(&env, "ipfs://first"),
+        );
+
+        // Second call for the same poll — must be rejected.
+        let result = client.try_initiate_voting(
+            &admin,
+            &4_u64,
+            &soroban_sdk::String::from_str(&env, "ipfs://second"),
+        );
+
+        assert_eq!(
+            result,
+            Err(Ok(PredictXError::PollAlreadyResolved)),
+            "second initiate_voting for the same poll must get PollAlreadyResolved"
+        );
     #[test]
     fn get_vote_tally_returns_poll_not_found_for_unknown_poll() {
     fn voting_views_return_false_for_unknown_poll() {
