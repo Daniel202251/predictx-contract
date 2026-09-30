@@ -31,6 +31,10 @@ pub fn resolve_poll(
         return Err(PredictXError::PollAlreadyResolved);
     }
 
+    // Enforce the poll status state machine: only polls that legitimately
+    // reached Voting/AdminReview/Disputed may be finalised (issue #123).
+    crate::transition_status(env, &poll, PollStatus::Resolved)?;
+
     poll.status = PollStatus::Resolved;
     poll.outcome = Some(outcome);
     poll.resolution_time = env.ledger().timestamp();
@@ -127,26 +131,35 @@ pub fn claim_winnings(
             return Err(PredictXError::NotOnWinningSide);
         }
 
-        // Proportional share of total pool, after platform fee.
-        //
-        // payout = stake_amount * total_pool * (BPS_DENOMINATOR - fee_bps)
-        //          / (winning_pool * BPS_DENOMINATOR)
-        //
-        // Integer division rounds down; any dust remains in the contract.
-        let fee_bps = token_utils::get_platform_fee_bps(env);
-        let fee_factor = (BPS_DENOMINATOR - fee_bps) as i128;
-        let bps = BPS_DENOMINATOR as i128;
+        // One-sided poll: nothing was staked on the losing side, so there is
+        // no losing pool to take a platform fee from. The winner is refunded
+        // their exact stake — mirroring `calculate_winnings`, which already
+        // returns the stake at par in this case.
+        let losing_pool: i128 = if outcome_yes { poll.no_pool } else { poll.yes_pool };
+        if losing_pool <= 0 {
+            stake.amount
+        } else {
+            // Proportional share of total pool, after platform fee.
+            //
+            // payout = stake_amount * total_pool * (BPS_DENOMINATOR - fee_bps)
+            //          / (winning_pool * BPS_DENOMINATOR)
+            //
+            // Integer division rounds down; any dust remains in the contract.
+            let fee_bps = token_utils::get_platform_fee_bps(env);
+            let fee_factor = (BPS_DENOMINATOR - fee_bps) as i128;
+            let bps = BPS_DENOMINATOR as i128;
 
-        let gross = stake.amount * total_pool / winning_pool;
-        let net = gross * fee_factor / bps;
-        let fee = gross - net;
+            let gross = stake.amount * total_pool / winning_pool;
+            let net = gross * fee_factor / bps;
+            let fee = gross - net;
 
-        // Send platform fee to treasury
-        if fee > 0 {
-            token_utils::transfer_to_treasury(env, fee)?;
+            // Send platform fee to treasury
+            if fee > 0 {
+                token_utils::transfer_to_treasury(env, fee)?;
+            }
+
+            net
         }
-
-        net
     };
 
     // ── Mark claimed & persist ────────────────────────────────────────────────
@@ -336,6 +349,24 @@ mod test {
                 staked_at: 900_000,
             };
             s.env.storage().persistent().set(&DataKey::Stake(poll_id, user.clone()), &stake);
+        });
+    }
+
+    /// Create a user, fund them, and place a real stake through the contract.
+    fn stake_user(s: &TestSetup, poll_id: u64, side: StakeSide, amount: i128) -> Address {
+        let user = Address::generate(&s.env);
+        mint_tokens(s, &user, amount);
+        s.client.stake(&user, &poll_id, &amount, &side);
+        user
+    }
+
+    /// Force a poll's stored status (lifecycle scaffolding for tests).
+    fn force_poll_status(s: &TestSetup, poll_id: u64, status: PollStatus) {
+        s.env.as_contract(&s.contract_id, || {
+            let mut poll: Poll =
+                s.env.storage().persistent().get(&DataKey::Poll(poll_id)).unwrap();
+            poll.status = status;
+            s.env.storage().persistent().set(&DataKey::Poll(poll_id), &poll);
         });
     }
 
@@ -543,6 +574,7 @@ mod test {
         let s = setup();
         let poll_id = create_poll(&s, 2_000_000);
         let winner = stake_user(&s, poll_id, StakeSide::Yes, 100_000_000);
+        force_poll_status(&s, poll_id, PollStatus::Voting);
         s.client.resolve_poll(&s.admin, &poll_id, &true);
 
         let claimed = s.client.claim_winnings(&winner, &poll_id);
@@ -558,6 +590,7 @@ mod test {
         let s = setup();
         let poll_id = create_poll(&s, 2_000_000);
         let winner = stake_user(&s, poll_id, StakeSide::No, 50_000_000);
+        force_poll_status(&s, poll_id, PollStatus::Voting);
         s.client.resolve_poll(&s.admin, &poll_id, &false);
 
         // The quote and the claim must agree, both fee-free.

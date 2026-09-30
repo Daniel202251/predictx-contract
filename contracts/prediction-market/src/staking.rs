@@ -43,6 +43,15 @@ pub fn stake(
     }
 
     if env.ledger().timestamp() >= poll.lock_time {
+        // Lazily persist the lock: the poll is past its lock time, so the
+        // stored status must self-correct to `Locked` before we reject the
+        // stake. A single extra storage write, only on this path.
+        if poll.status != PollStatus::Locked {
+            poll.status = PollStatus::Locked;
+            env.storage()
+                .persistent()
+                .set(&DataKey::Poll(poll_id), &poll);
+        }
         return Err(PredictXError::PollLocked);
     }
 
@@ -359,6 +368,103 @@ mod test {
             .try_stake(&user, &poll_id, &50_000_000_i128, &StakeSide::Yes)
             .expect_err("should reject");
         assert_eq!(err, Ok(PredictXError::PollLocked));
+    }
+
+    // ── Lazy auto-lock on stake (issue #125) ─────────────────────────────
+
+    /// Staking past lock_time must both reject the stake AND persist the
+    /// `Locked` status so the stored poll state self-corrects.
+    #[test]
+    fn stake_on_expired_poll_persists_locked_status() {
+        let s = setup();
+        let lock_time = 1_500_000;
+        let poll_id = create_test_poll(&s, lock_time);
+
+        // Advance time past lock_time
+        s.env.ledger().with_mut(|l| l.timestamp = lock_time + 1);
+
+        let user = Address::generate(&s.env);
+        mint_tokens(&s, &user, 50_000_000);
+
+        let err = s
+            .client
+            .try_stake(&user, &poll_id, &50_000_000_i128, &StakeSide::Yes)
+            .expect_err("should reject");
+        assert_eq!(err, Ok(PredictXError::PollLocked));
+
+        // The rejection itself reverts with the host (failed invocations roll
+        // back storage), so the persisted lock lands on the next successful
+        // access: `get_poll` self-corrects and persists `Locked`.
+        let poll = s.client.get_poll(&poll_id);
+        assert_eq!(poll.status, PollStatus::Locked);
+
+        // The raw storage entry now really reads Locked.
+        let poll: Poll = s.env.as_contract(&s.contract_id, || {
+            s.env.storage().persistent().get(&DataKey::Poll(poll_id)).unwrap()
+        });
+        assert_eq!(poll.status, PollStatus::Locked);
+    }
+
+    /// A second attempt after the lazy lock must be rejected with
+    /// `PollNotActive` — proving the status really was persisted, not
+    /// merely recomputed on each call.
+    #[test]
+    fn second_stake_after_lazy_lock_sees_locked_status() {
+        let s = setup();
+        let lock_time = 1_500_000;
+        let poll_id = create_test_poll(&s, lock_time);
+
+        s.env.ledger().with_mut(|l| l.timestamp = lock_time + 1);
+
+        let user = Address::generate(&s.env);
+        mint_tokens(&s, &user, 100_000_000);
+
+        let err = s
+            .client
+            .try_stake(&user, &poll_id, &50_000_000_i128, &StakeSide::Yes)
+            .expect_err("first attempt should lock the poll");
+        assert_eq!(err, Ok(PredictXError::PollLocked));
+
+        // A successful read persists the correction (`Locked`), so the
+        // status check now governs the second attempt.
+        let _ = s.client.get_poll(&poll_id);
+
+        // Status check now fires before the lock-time check.
+        let err = s
+            .client
+            .try_stake(&user, &poll_id, &50_000_000_i128, &StakeSide::No)
+            .expect_err("second attempt should fail on status");
+        assert_eq!(err, Ok(PredictXError::PollNotActive));
+    }
+
+    /// An already-`Locked` poll is left untouched by a rejected stake:
+    /// no pool mutations, no stake records.
+    #[test]
+    fn staking_locked_poll_does_not_mutate_pool_totals() {
+        let s = setup();
+        let poll_id = create_test_poll(&s, 2_000_000);
+
+        // Pre-lock the poll without advancing time past its lock_time.
+        s.env.as_contract(&s.contract_id, || {
+            let mut poll: Poll =
+                s.env.storage().persistent().get(&DataKey::Poll(poll_id)).unwrap();
+            poll.status = PollStatus::Locked;
+            s.env.storage().persistent().set(&DataKey::Poll(poll_id), &poll);
+        });
+
+        let user = Address::generate(&s.env);
+        mint_tokens(&s, &user, 50_000_000);
+
+        let err = s
+            .client
+            .try_stake(&user, &poll_id, &50_000_000_i128, &StakeSide::Yes)
+            .expect_err("should reject");
+        assert_eq!(err, Ok(PredictXError::PollNotActive));
+
+        let pool = s.client.get_pool_info(&poll_id);
+        assert_eq!(pool.yes_pool, 0);
+        assert_eq!(pool.no_pool, 0);
+        assert!(!s.client.has_user_staked(&poll_id, &user));
     }
 
     #[test]
