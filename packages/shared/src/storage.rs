@@ -55,10 +55,14 @@ pub enum DataKey {
     UserStats(Address),
     /// `(poll_id, voter)` → `i128` unclaimed voter reward. (Persistent)
     VoterReward(u64, Address),
+    /// `poll_id` → `VotingOracle`-specific poll metadata. (Persistent)
+    OraclePoll(u64),
 
     // ── Temporary storage ─────────────────────────────────────────────────────
     /// `poll_id` → `VoteTally`. (Temporary — only needed during voting window)
     VoteTally(u64),
     /// `(poll_id, voter)` → `bool` — has this voter cast a vote? (Temporary)
     HasVoted(u64, Address),
+    /// `poll_id` → `VotingOracle`-specific tally snapshot. (Temporary)
+    OracleTally(u64),
 }
