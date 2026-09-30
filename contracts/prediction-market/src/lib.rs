@@ -515,10 +515,21 @@ impl PredictionMarket {
         staking::get_pool_info(&env, poll_id)
     }
 
-    /// Claim winnings for a resolved poll. Routes the platform fee to the
-    /// treasury on the first claim (`FeePaid` marker).
+    /// Read-only view: return the token amount that `claim_winnings` would
+    /// transfer to `user` for the given poll.  Returns `0` for every
+    /// ineligible case (unresolved poll, non-staker, losing staker,
+    /// already-claimed) rather than erroring.  No `require_auth` — public.
+    pub fn get_claimable_amount(env: Env, poll_id: u64, user: Address) -> i128 {
+        payouts::get_claimable_amount(&env, poll_id, &user)
+    }
+
+    /// Claim winnings for a resolved poll.
+    ///
+    /// Transfers the same amount `get_claimable_amount` would return.
+    /// Requires the caller to be the staker (`user.require_auth()`).
     pub fn claim_winnings(env: Env, user: Address, poll_id: u64) -> Result<i128, PredictXError> {
-        payouts::claim_winnings(&env, user, poll_id)
+        ensure_not_paused(&env)?;
+        payouts::claim_winnings_for_poll(&env, user, poll_id)
     }
 
     pub fn get_platform_stats(env: Env) -> PlatformStats {
