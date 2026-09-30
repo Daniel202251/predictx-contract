@@ -80,4 +80,6 @@ pub enum PredictXError {
     OutcomeNotAvailable = 37,
     /// The reward amount must not be negative.
     InvalidRewardAmount = 38,
+    /// The requested poll status transition is not part of the legal graph.
+    InvalidStateTransition = 39,
 }
