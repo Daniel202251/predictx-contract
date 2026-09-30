@@ -1,3 +1,75 @@
+//! Voting lifecycle functions for the VotingOracle contract.
+
+use predictx_shared::{PollStatus, PredictXError, VoteTally, VOTING_WINDOW_SECS};
+use soroban_sdk::{Address, Env, String};
+
+use crate::{DataKey, StoredPollStatus};
+
+/// Opens a two-hour community voting window for a finished poll.
+///
+/// # Arguments
+/// * `env`           — Soroban environment
+/// * `admin`         — The admin address; must match the stored admin
+/// * `poll_id`       — ID of the poll whose match has concluded
+/// * `evidence_hash` — IPFS/hash of evidence supporting the outcome
+///
+/// # Errors
+/// * [`PredictXError::Unauthorized`]        — caller is not the stored admin
+/// * [`PredictXError::PollAlreadyResolved`] — voting has already been opened
+///                                            for this poll (status is already
+///                                            `PollStatus::Voting`)
+///
+/// # Storage written
+/// * `DataKey::VoteTally(poll_id)`      — zeroed tally with
+///   `voting_end_time = now + VOTING_WINDOW_SECS`, written to **temporary**
+///   storage (only needed for the duration of the voting window)
+/// * `DataKey::VotingEvidence(poll_id)` — the IPFS evidence hash, written to
+///   **temporary** storage alongside the tally
+/// * `DataKey::PollStatus(poll_id)`     — set to `PollStatus::Voting` via the
+///   same `StoredPollStatus` pattern used by `set_poll_status`
+pub fn initiate_voting(
+    env: Env,
+    admin: Address,
+    poll_id: u64,
+    evidence_hash: String,
+) -> Result<(), PredictXError> {
+    // 1. Require admin authentication.
+    admin.require_auth();
+
+    // 2. Verify the caller is the stored admin.
+    let stored_admin: Address = env
+        .storage()
+        .instance()
+        .get(&DataKey::Admin)
+        .ok_or(PredictXError::NotInitialized)?;
+
+    if admin != stored_admin {
+        return Err(PredictXError::Unauthorized);
+    }
+
+    // 3. Guard against double-opening: if the poll is already in the Voting
+    //    state we treat it the same as "already resolved" — the window is open.
+    let current_status: PollStatus = env
+        .storage()
+        .persistent()
+        .get::<DataKey, StoredPollStatus>(&DataKey::PollStatus(poll_id))
+        .map(|s| s.status)
+        .unwrap_or(PollStatus::Active);
+
+    if current_status == PollStatus::Voting {
+        return Err(PredictXError::PollAlreadyResolved);
+    }
+
+    // 4. Compute the voting deadline (checked arithmetic — no silent overflow).
+    let now: u64 = env.ledger().timestamp();
+    let voting_end_time: u64 = now
+        .checked_add(VOTING_WINDOW_SECS)
+        .expect("timestamp overflow");
+
+    // 5. Build a zeroed VoteTally with every field from the actual struct.
+    //    evidence_hash is not a field of VoteTally; it is stored separately
+    //    (see step 6b).
+    let tally = VoteTally {
 use crate::{storage, DataKey, MAX_VOTERS};
 use predictx_shared::{
     PollStatus, PredictXError, VoteChoice, VoteTally, AUTO_RESOLVE_THRESHOLD_BPS, BPS_DENOMINATOR,
@@ -6,6 +78,38 @@ use predictx_shared::{
 use soroban_sdk::{Address, Env, Symbol};
 
 /// Record a voter's choice on a poll.
+///
+/// # Voter cap policy
+///
+/// The roster of distinct voters per poll is bounded by [`MAX_VOTERS`]. The
+/// cap is **window-scoped**, not a permanent freeze: it only limits how many
+/// distinct addresses may be recorded during the poll's voting window, and it
+/// never blocks the poll from reaching a settlement path.
+///
+/// When the cap is reached:
+///
+/// - New distinct addresses are rejected with [`PredictXError::MaxVotersReached`]
+///   (see [`cast_vote`]); the roster is *not* silently truncated or rotated,
+///   so already-recorded votes stay intact and auditable.
+/// - The poll remains resolvable. [`auto_resolve`] only depends on the tally
+///   and the voting window, so a capped poll still settles once the window
+///   closes and the leading outcome clears
+///   [`AUTO_RESOLVE_THRESHOLD_BPS`]. A capped poll is therefore never left
+///   permanently unsettleable by community vote.
+/// - Recovery for a poll that cannot reach consensus is handled by the
+///   admin/community resolution path (tracked separately), which does not
+///   require reopening the roster.
+///
+/// # Abuse model for exhausting the roster
+///
+/// Because [`cast_vote`] does not yet gate on stake or eligibility (see the
+/// "excluding stakers" note below), an adversary can fill all [`MAX_VOTERS`]
+/// slots with sybil addresses and lock out honest voters for the remainder of
+/// the window. The cap bounds the blast radius of that griefing: it limits the
+/// roster to a fixed size, keeps every recorded vote auditable, and — crucially
+/// — does not prevent the poll from settling. Mitigating the sybil fill itself
+/// (stake-weighting, eligibility proofs, or a per-window reset) is out of scope
+/// for this change and tracked separately.
 ///
 /// Flow (Checks → Effects):
 /// 1. Authenticates the caller as the voter.
@@ -46,6 +150,10 @@ pub fn cast_vote(
         return Err(PredictXError::AlreadyVoted);
     }
 
+    // Cap is window-scoped: once the roster is full, new distinct addresses
+    // are rejected for this window only. The poll still settles via
+    // `auto_resolve` (or the admin/community path), so this is not a
+    // permanent freeze. See the cap policy in `cast_vote`'s doc comment.
     if voters.len() >= MAX_VOTERS {
         return Err(PredictXError::MaxVotersReached);
     }
@@ -59,6 +167,26 @@ pub fn cast_vote(
         no_votes: 0,
         unclear_votes: 0,
         total_voters: 0,
+        voting_end_time,
+        reward_pool: 0,
+    };
+
+    // 6a. Persist the tally in temporary storage — it is only needed for the
+    //     duration of the two-hour voting window.
+    env.storage()
+        .temporary()
+        .set(&DataKey::VoteTally(poll_id), &tally);
+
+    // 6b. Store the evidence hash alongside the tally so voters and resolvers
+    //     can retrieve it.  VoteTally itself has no evidence_hash field.
+    env.storage()
+        .temporary()
+        .set(&DataKey::VotingEvidence(poll_id), &evidence_hash);
+
+    // 7. Advance poll status to Voting using the same StoredPollStatus pattern
+    //    that set_poll_status (lib.rs:50) uses.
+    let stored_status = StoredPollStatus {
+        status: PollStatus::Voting,
         voting_end_time: crate::read_poll_status_updated_at(env, poll_id)
             .checked_add(VOTING_WINDOW_SECS)
             .unwrap_or(0),
@@ -234,6 +362,8 @@ pub fn auto_resolve(env: &Env, poll_id: u64) -> Result<VoteChoice, PredictXError
     env.storage()
         .persistent()
         .set(&DataKey::PollStatus(poll_id), &stored_status);
+
+    Ok(())
     env.storage()
         .persistent()
         .set(&DataKey::PollOutcome(poll_id), &outcome);
@@ -369,6 +499,31 @@ mod test {
 
         assert_eq!(err, Ok(PredictXError::MaxVotersReached));
         assert_eq!(client.get_voters(&1_u64).len(), MAX_VOTERS);
+    }
+
+    #[test]
+    fn capped_poll_still_reaches_settlement_path() {
+        let (env, _admin, client) = setup();
+
+        // Fill the roster to the cap with a decisive Yes majority.
+        for _ in 0..MAX_VOTERS {
+            client.cast_vote(&voter(&env), &1_u64, &VoteChoice::Yes);
+        }
+
+        // The cap is hit: a further distinct voter is rejected...
+        let err = client
+            .try_cast_vote(&voter(&env), &1_u64, &VoteChoice::Yes)
+            .expect_err("voter roster cap must be enforced");
+        assert_eq!(err, Ok(PredictXError::MaxVotersReached));
+
+        // ...but the capped poll is not frozen: it still settles once the
+        // voting window closes and consensus clears the threshold.
+        env.ledger().set_timestamp(1_000_000 + VOTING_WINDOW_SECS);
+        let outcome = client.auto_resolve(&1_u64);
+
+        assert_eq!(outcome, VoteChoice::Yes);
+        assert_eq!(client.get_poll_status(&1_u64), PollStatus::Resolved);
+        assert_eq!(client.get_poll_outcome(&1_u64), VoteChoice::Yes);
     }
 
     #[test]

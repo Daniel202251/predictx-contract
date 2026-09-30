@@ -17,6 +17,57 @@ pub fn require_admin(env: &Env, caller: &Address) -> Result<(), PredictXError> {
     Ok(())
 }
 
+// ── Admin transfer ────────────────────────────────────────────────────────────
+
+pub fn propose_admin(
+    env: &Env,
+    current: Address,
+    candidate: Address,
+) -> Result<(), PredictXError> {
+    require_admin(env, &current)?;
+    env.storage().instance().set(&DataKey::PendingAdmin, &candidate);
+    env.events().publish(
+        (Symbol::new(env, "AdminProposed"), current),
+        candidate,
+    );
+    Ok(())
+}
+
+pub fn cancel_admin_proposal(
+    env: &Env,
+    current: Address,
+) -> Result<(), PredictXError> {
+    require_admin(env, &current)?;
+    env.storage().instance().remove(&DataKey::PendingAdmin);
+    env.events().publish(
+        (Symbol::new(env, "AdminProposalCancelled"), current),
+        (),
+    );
+    Ok(())
+}
+
+pub fn accept_admin(
+    env: &Env,
+    candidate: Address,
+) -> Result<(), PredictXError> {
+    candidate.require_auth();
+    let pending: Address = env
+        .storage()
+        .instance()
+        .get(&DataKey::PendingAdmin)
+        .ok_or(PredictXError::Unauthorized)?;
+    if candidate != pending {
+        return Err(PredictXError::Unauthorized);
+    }
+    env.storage().instance().set(&DataKey::Admin, &candidate);
+    env.storage().instance().remove(&DataKey::PendingAdmin);
+    env.events().publish(
+        (Symbol::new(env, "AdminTransferred"), candidate.clone()),
+        candidate,
+    );
+    Ok(())
+}
+
 // ── Match functions ───────────────────────────────────────────────────────────
 
 pub fn create_match(
@@ -367,5 +418,67 @@ mod test {
     fn test_get_match_count_starts_zero() {
         let (_, _, client) = setup();
         assert_eq!(client.get_match_count(), 0);
+    }
+
+    #[test]
+    fn test_propose_admin_does_not_change_active_admin() {
+        let (env, admin, client) = setup();
+        let candidate = Address::generate(&env);
+        client.propose_admin(&admin, &candidate);
+        // old admin still works
+        default_match(&env, &client, &admin);
+        // candidate cannot act yet
+        let err = client.try_create_match(
+            &candidate,
+            &s(&env, "A"), &s(&env, "B"),
+            &s(&env, "L"), &s(&env, "V"),
+            &KICKOFF,
+        ).unwrap_err().unwrap();
+        assert_eq!(err, PredictXError::Unauthorized);
+    }
+
+    #[test]
+    fn test_only_proposed_candidate_can_accept() {
+        let (env, admin, client) = setup();
+        let candidate = Address::generate(&env);
+        let stranger = Address::generate(&env);
+        client.propose_admin(&admin, &candidate);
+        let err = client.try_accept_admin(&stranger).unwrap_err().unwrap();
+        assert_eq!(err, PredictXError::Unauthorized);
+        client.accept_admin(&candidate);
+    }
+
+    #[test]
+    fn test_proposal_can_be_overwritten_or_cancelled() {
+        let (env, admin, client) = setup();
+        let first = Address::generate(&env);
+        let second = Address::generate(&env);
+        client.propose_admin(&admin, &first);
+        client.propose_admin(&admin, &second);
+        // first can no longer accept
+        let err = client.try_accept_admin(&first).unwrap_err().unwrap();
+        assert_eq!(err, PredictXError::Unauthorized);
+        // cancel removes pending
+        client.cancel_admin_proposal(&admin);
+        let err = client.try_accept_admin(&second).unwrap_err().unwrap();
+        assert_eq!(err, PredictXError::Unauthorized);
+    }
+
+    #[test]
+    fn test_old_admin_loses_access_after_acceptance() {
+        let (env, admin, client) = setup();
+        let candidate = Address::generate(&env);
+        client.propose_admin(&admin, &candidate);
+        client.accept_admin(&candidate);
+        // old admin rejected
+        let err = client.try_create_match(
+            &admin,
+            &s(&env, "A"), &s(&env, "B"),
+            &s(&env, "L"), &s(&env, "V"),
+            &KICKOFF,
+        ).unwrap_err().unwrap();
+        assert_eq!(err, PredictXError::Unauthorized);
+        // new admin works
+        default_match(&env, &client, &candidate);
     }
 }

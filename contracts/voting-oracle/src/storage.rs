@@ -1,4 +1,4 @@
-use crate::DataKey;
+use predictx_shared::DataKey;
 use predictx_shared::{PredictXError, VoteChoice, VoteTally};
 use soroban_sdk::{Address, Env, Vec};
 
@@ -49,6 +49,24 @@ pub fn write_tally(env: &Env, tally: &VoteTally) {
 }
 
 // ── Voter roster storage ─────────────────────────────────────────────────────
+
+/// The voter roster is *window-scoped*: it is only authoritative while the
+/// voting window is open. Once the window closes, the roster is no longer
+/// consulted for admission decisions and the poll settles from the tally that
+/// was accumulated during the window.
+///
+/// Abuse model: an attacker can fill the roster with up to `MAX_VOTERS`
+/// distinct (possibly sybil) addresses to exhaust the cap. Because the cap is
+/// window-scoped and the poll can still be settled from the tally recorded
+/// before the cap was hit, exhausting the roster cannot permanently freeze the
+/// poll. It only limits how many additional distinct voters can be admitted
+/// during the current window; the poll remains settleable by community vote.
+///
+/// Recovery path: when the cap is reached, the poll is not permanently
+/// unsettleable. The window can be closed (or has already closed), at which
+/// point settlement proceeds from the stored tally rather than requiring new
+/// voters. There is no permanent freeze because the cap does not block
+/// resolution.
 
 /// Read the persistent voter roster for a poll, defaulting to an empty list.
 pub fn read_voters(env: &Env, poll_id: u64) -> Vec<Address> {

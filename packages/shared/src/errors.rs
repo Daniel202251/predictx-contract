@@ -72,6 +72,8 @@ pub enum PredictXError {
     ContractPaused = 33,
     /// Stake amount is below the minimum required.
     StakeBelowMinimum = 34,
+    /// Evidence string is invalid or empty.
+    InvalidEvidence = 35,
     /// The poll already has the maximum number of voters.
     MaxVotersReached = 35,
     /// The voter did not back the winning outcome (including `Unclear`).
@@ -80,4 +82,6 @@ pub enum PredictXError {
     OutcomeNotAvailable = 37,
     /// The reward amount must not be negative.
     InvalidRewardAmount = 38,
+    /// The requested poll status transition is not part of the legal graph.
+    InvalidStateTransition = 39,
 }
