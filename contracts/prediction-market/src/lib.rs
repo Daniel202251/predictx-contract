@@ -16,6 +16,58 @@ mod voting_oracle {
     soroban_sdk::contractimport!(file = "wasm/voting_oracle.wasm");
 }
 
+/// Central poll-status state machine.
+///
+/// Legal transition graph:
+///
+/// ```text
+/// Active ──→ Locked ──→ Voting ──→ AdminReview
+///   │                        │    └──→ Disputed ──→ Resolved
+///   │                        └───────────────→ Resolved
+///   └──────→ Cancelled        Locked ────────→ Cancelled
+/// ```
+///
+/// - `Active` → `Locked` : staking window closed (lock time reached).
+/// - `Locked` → `Voting` : match finished; community voting opens.
+/// - `Voting` → `AdminReview` : consensus between the review thresholds.
+/// - `Voting` → `Disputed` : result challenged during the dispute window.
+/// - `AdminReview` → `Resolved` : admins finalise the outcome.
+/// - `Disputed` → `Resolved` : dispute settled.
+/// - `Voting` → `Resolved` : consensus reached the auto-resolve threshold.
+/// - `Active` | `Locked` → `Cancelled` : emergency cancellation (refunds).
+///
+/// `Resolved` and `Cancelled` are terminal — no outgoing transitions.
+/// Every other status change is rejected with `InvalidStateTransition`.
+pub(crate) fn transition_status(
+    env: &Env,
+    poll: &Poll,
+    to: PollStatus,
+) -> Result<(), PredictXError> {
+    use PollStatus::{
+        Active, AdminReview, Cancelled, Disputed, Locked, Resolved, Voting,
+    };
+
+    let legal = match poll.status {
+        Active => matches!(to, Locked | Cancelled),
+        Locked => matches!(to, Voting | Cancelled),
+        Voting => matches!(to, AdminReview | Disputed | Resolved),
+        AdminReview => matches!(to, Resolved),
+        Disputed => matches!(to, Resolved),
+        // Terminal states accept no further transitions.
+        Resolved | Cancelled => false,
+    };
+
+    if !legal {
+        return Err(PredictXError::InvalidStateTransition);
+    }
+
+    env.events().publish(
+        (Symbol::new(env, "PollStatusChanged"), poll.poll_id),
+        (poll.status, to),
+   );
+    Ok(())
+}
+
 fn map_oracle_poll_status(status: voting_oracle::PollStatus) -> PollStatus {
     match status {
         voting_oracle::PollStatus::Active      => PollStatus::Active,
@@ -321,45 +373,26 @@ impl PredictionMarket {
     }
 
 
-    /// Resolve a poll with a boolean outcome. Callable only by the registered oracle.
-    pub fn resolve_poll(
-        env: Env,
-        caller: Address,
-        poll_id: u64,
-        outcome: bool,
-    ) -> Result<(), PredictXError> {
-        caller.require_auth();
-        let oracle = get_oracle(&env)?;
-        if caller != oracle {
-            return Err(PredictXError::Unauthorized);
-        }
-
+    pub fn get_poll(env: Env, poll_id: u64) -> Result<Poll, PredictXError> {
         let mut poll: Poll = env
             .storage()
             .persistent()
             .get(&DataKey::Poll(poll_id))
             .ok_or(PredictXError::PollNotFound)?;
 
-        if poll.status == PollStatus::Resolved || poll.outcome.is_some() {
-            return Err(PredictXError::PollAlreadyResolved);
+        // Lazily self-correct (issue #125): a poll past its lock time whose
+        // stored status is still `Active` is persisted as `Locked` on read.
+        // This is the access path where the correction can actually survive:
+        // writes performed by a *failed* `stake` invocation are reverted by
+        // the host, so the persisted lock lands here instead.
+        if poll.status == PollStatus::Active && env.ledger().timestamp() >= poll.lock_time {
+            poll.status = PollStatus::Locked;
+            env.storage()
+                .persistent()
+                .set(&DataKey::Poll(poll_id), &poll);
         }
 
-        poll.outcome = Some(outcome);
-        poll.resolution_time = env.ledger().timestamp();
-        poll.status = PollStatus::Resolved;
-
-        env.storage()
-            .persistent()
-            .set(&DataKey::Poll(poll_id), &poll);
-
-        Ok(())
-    }
-
-    pub fn get_poll(env: Env, poll_id: u64) -> Result<Poll, PredictXError> {
-        env.storage()
-            .persistent()
-            .get(&DataKey::Poll(poll_id))
-            .ok_or(PredictXError::PollNotFound)
+        Ok(poll)
     }
 
     // ── Staking ───────────────────────────────────────────────────────────────
@@ -737,6 +770,15 @@ mod test {
         assert_eq!(err, Ok(PredictXError::AlreadyClaimed));
     }
 
+    /// Force a poll's stored status (test scaffolding for lifecycle tests).
+    fn force_poll_status(env: &Env, contract_id: &Address, poll_id: u64, status: PollStatus) {
+        env.as_contract(contract_id, || {
+            let mut poll: Poll = env.storage().persistent().get(&DataKey::Poll(poll_id)).unwrap();
+            poll.status = status;
+            env.storage().persistent().set(&DataKey::Poll(poll_id), &poll);
+        });
+    }
+
     fn seed_active_poll(env: &Env, contract_id: &Address, poll_id: u64, creator: &Address) {
         let poll = Poll {
             poll_id,
@@ -787,7 +829,7 @@ mod test {
         let tok = Address::generate(&env);
         let treasury = Address::generate(&env);
         client.initialize(&admin, &oracle, &tok, &treasury, &TEST_FEE_BPS);
-        let err = client.try_resolve_poll(&oracle, &99_u64, &false).expect_err("missing");
+        let err = client.try_resolve_poll(&admin, &99_u64, &false).expect_err("missing");
         assert_eq!(err, Ok(PredictXError::PollNotFound));
     }
 
@@ -804,7 +846,9 @@ mod test {
         let treasury = Address::generate(&env);
         client.initialize(&admin, &oracle, &tok, &treasury, &TEST_FEE_BPS);
         seed_active_poll(&env, &contract_id, 7, &admin);
-        client.resolve_poll(&oracle, &7_u64, &true);
+        // Resolution is only legal once the poll has reached the voting phase.
+        force_poll_status(&env, &contract_id, 7, PollStatus::Voting);
+        client.resolve_poll(&admin, &7_u64, &true);
         let poll = client.get_poll(&7_u64);
         assert_eq!(poll.outcome, Some(true));
         assert_eq!(poll.resolution_time, 1_700_000_000);
@@ -823,9 +867,154 @@ mod test {
         let treasury = Address::generate(&env);
         client.initialize(&admin, &oracle, &tok, &treasury, &TEST_FEE_BPS);
         seed_active_poll(&env, &contract_id, 3, &admin);
-        client.resolve_poll(&oracle, &3_u64, &false);
-        let err = client.try_resolve_poll(&oracle, &3_u64, &true).expect_err("already");
+        force_poll_status(&env, &contract_id, 3, PollStatus::Voting);
+        client.resolve_poll(&admin, &3_u64, &false);
+        let err = client.try_resolve_poll(&admin, &3_u64, &true).expect_err("already");
         assert_eq!(err, Ok(PredictXError::PollAlreadyResolved));
+    }
+
+    // ── transition_status state machine (issue #123) ──────────────────────────
+
+    fn poll_with_status(env: &Env, status: PollStatus) -> Poll {
+        Poll {
+            poll_id: 1,
+            match_id: 1,
+            creator: Address::generate(env),
+            question: String::from_str(env, "q"),
+            category: PollCategory::TeamEvent,
+            lock_time: 1_000,
+            yes_pool: 0,
+            no_pool: 0,
+            yes_count: 0,
+            no_count: 0,
+            status,
+            outcome: None,
+            resolution_time: 0,
+            created_at: 0,
+        }
+    }
+
+    #[test]
+    fn transition_accepts_every_legal_edge() {
+        let env = Env::default();
+        let cases = [
+            (PollStatus::Active, PollStatus::Locked),
+            (PollStatus::Locked, PollStatus::Voting),
+            (PollStatus::Voting, PollStatus::AdminReview),
+            (PollStatus::Voting, PollStatus::Disputed),
+            (PollStatus::Voting, PollStatus::Resolved),
+            (PollStatus::AdminReview, PollStatus::Resolved),
+            (PollStatus::Disputed, PollStatus::Resolved),
+            (PollStatus::Active, PollStatus::Cancelled),
+            (PollStatus::Locked, PollStatus::Cancelled),
+        ];
+        for (from, to) in cases {
+            let poll = poll_with_status(&env, from);
+            assert_eq!(
+                transition_status(&env, &poll, to),
+                Ok(()),
+                "legal edge {:?} -> {:?} rejected",
+                from,
+                to
+            );
+        }
+    }
+
+    #[test]
+    fn transition_rejects_illegal_edges() {
+        let env = Env::default();
+        let cases = [
+            (PollStatus::Active, PollStatus::Resolved),
+            (PollStatus::Active, PollStatus::Voting),
+            (PollStatus::Active, PollStatus::AdminReview),
+            (PollStatus::Active, PollStatus::Disputed),
+            (PollStatus::Locked, PollStatus::Resolved),
+            (PollStatus::Locked, PollStatus::Locked),
+            (PollStatus::Voting, PollStatus::Locked),
+            (PollStatus::Voting, PollStatus::Cancelled),
+            (PollStatus::Voting, PollStatus::Active),
+            (PollStatus::AdminReview, PollStatus::Disputed),
+            (PollStatus::Disputed, PollStatus::AdminReview),
+        ];
+        for (from, to) in cases {
+            let poll = poll_with_status(&env, from);
+            assert_eq!(
+                transition_status(&env, &poll, to),
+                Err(PredictXError::InvalidStateTransition),
+                "illegal edge {:?} -> {:?} was accepted",
+                from,
+                to
+            );
+        }
+    }
+
+    #[test]
+    fn resolved_and_cancelled_are_terminal() {
+        let env = Env::default();
+        let statuses = [
+            PollStatus::Active,
+            PollStatus::Locked,
+            PollStatus::Voting,
+            PollStatus::AdminReview,
+            PollStatus::Disputed,
+            PollStatus::Resolved,
+            PollStatus::Cancelled,
+        ];
+        for terminal in [PollStatus::Resolved, PollStatus::Cancelled] {
+            for to in statuses {
+                let poll = poll_with_status(&env, terminal);
+                assert_eq!(
+                    transition_status(&env, &poll, to),
+                    Err(PredictXError::InvalidStateTransition),
+                    "terminal {:?} must not transition to {:?}",
+                    terminal,
+                    to
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn resolve_poll_rejects_active_poll_with_invalid_transition() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register(PredictionMarket, ());
+        let client = PredictionMarketClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+        let oracle = Address::generate(&env);
+        let tok = Address::generate(&env);
+        let treasury = Address::generate(&env);
+        client.initialize(&admin, &oracle, &tok, &treasury, &TEST_FEE_BPS);
+        seed_active_poll(&env, &contract_id, 4, &admin);
+
+        // Active -> Resolved is not part of the legal graph.
+        let err = client
+            .try_resolve_poll(&admin, &4_u64, &true)
+            .expect_err("active polls cannot be resolved directly");
+        assert_eq!(err, Ok(PredictXError::InvalidStateTransition));
+    }
+
+    #[test]
+    fn full_lifecycle_walk_via_state_machine() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register(PredictionMarket, ());
+        let client = PredictionMarketClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+        let oracle = Address::generate(&env);
+        let tok = Address::generate(&env);
+        let treasury = Address::generate(&env);
+        client.initialize(&admin, &oracle, &tok, &treasury, &TEST_FEE_BPS);
+        seed_active_poll(&env, &contract_id, 9, &admin);
+
+        force_poll_status(&env, &contract_id, 9, PollStatus::Locked);
+        force_poll_status(&env, &contract_id, 9, PollStatus::Voting);
+        force_poll_status(&env, &contract_id, 9, PollStatus::Disputed);
+
+        client.resolve_poll(&admin, &9_u64, &false);
+        let poll = client.get_poll(&9_u64);
+        assert_eq!(poll.status, PollStatus::Resolved);
+        assert_eq!(poll.outcome, Some(false));
     }
 
 }
