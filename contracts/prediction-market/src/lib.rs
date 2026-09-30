@@ -171,6 +171,12 @@ fn set_emergency_claimed(env: &Env, poll_id: u64, user: &Address) {
         .set(&DataKey::EmergencyClaimed(poll_id, user.clone()), &true);
 }
 
+/// Extend the TTL of instance storage so the contract's admin, token and
+/// configuration entries are not archived during periods of inactivity.
+pub(crate) fn extend_instance_ttl(env: &Env) {
+    env.storage().instance().extend_ttl(100, 1000);
+}
+
 const EMERGENCY_TIMEOUT_SECS: u64 = 7 * 24 * 60 * 60;
 
 #[contractimpl]
@@ -183,6 +189,7 @@ impl PredictionMarket {
         treasury_address: Address,
         platform_fee_bps: u32,
     ) -> Result<(), PredictXError> {
+        extend_instance_ttl(&env);
         if env.storage().instance().has(&DataKey::Admin) {
             return Err(PredictXError::AlreadyInitialized);
         }
@@ -202,6 +209,7 @@ impl PredictionMarket {
     pub fn oracle(env: Env) -> Result<Address, PredictXError> { get_oracle(&env) }
 
     pub fn set_oracle(env: Env, voting_oracle: Address) -> Result<(), PredictXError> {
+        extend_instance_ttl(&env);
         ensure_not_paused(&env)?;
         let admin = get_admin(&env)?;
         admin.require_auth();
@@ -210,6 +218,7 @@ impl PredictionMarket {
     }
 
     pub fn pause(env: Env, admin: Address) -> Result<(), PredictXError> {
+        extend_instance_ttl(&env);
         let stored_admin = get_admin(&env)?;
         if admin != stored_admin { return Err(PredictXError::Unauthorized); }
         admin.require_auth();
@@ -219,6 +228,7 @@ impl PredictionMarket {
     }
 
     pub fn unpause(env: Env, admin: Address) -> Result<(), PredictXError> {
+        extend_instance_ttl(&env);
         let stored_admin = get_admin(&env)?;
         if admin != stored_admin { return Err(PredictXError::Unauthorized); }
         admin.require_auth();
@@ -236,6 +246,7 @@ impl PredictionMarket {
     }
 
     pub fn cancel_poll(env: Env, admin: Address, poll_id: u64) -> Result<(), PredictXError> {
+        extend_instance_ttl(&env);
         ensure_not_paused(&env)?;
         let stored_admin = get_admin(&env)?;
         if admin != stored_admin { return Err(PredictXError::Unauthorized); }
@@ -262,6 +273,7 @@ impl PredictionMarket {
     }
 
     pub fn emergency_withdraw(env: Env, user: Address, poll_id: u64) -> Result<i128, PredictXError> {
+        extend_instance_ttl(&env);
         user.require_auth();
         if has_emergency_claimed(&env, poll_id, &user) {
             return Err(PredictXError::AlreadyClaimed);
@@ -301,6 +313,7 @@ impl PredictionMarket {
         category: PollCategory,
         lock_time: u64,
     ) -> Result<u64, PredictXError> {
+        extend_instance_ttl(&env);
         ensure_not_paused(&env)?;
         creator.require_auth();
 
@@ -373,6 +386,20 @@ impl PredictionMarket {
     }
 
 
+    /// Resolve a poll with a boolean outcome. Callable only by the registered oracle.
+    pub fn resolve_poll(
+        env: Env,
+        caller: Address,
+        poll_id: u64,
+        outcome: bool,
+    ) -> Result<(), PredictXError> {
+        extend_instance_ttl(&env);
+        caller.require_auth();
+        let oracle = get_oracle(&env)?;
+        if caller != oracle {
+            return Err(PredictXError::Unauthorized);
+        }
+
     pub fn get_poll(env: Env, poll_id: u64) -> Result<Poll, PredictXError> {
         let mut poll: Poll = env
             .storage()
@@ -404,6 +431,7 @@ impl PredictionMarket {
         amount: i128,
         side: StakeSide,
     ) -> Result<Stake, PredictXError> {
+        extend_instance_ttl(&env);
         staking::stake(&env, staker, poll_id, amount, side)
     }
 
@@ -468,6 +496,7 @@ impl PredictionMarket {
         league: String, venue: String,
         kickoff_time: u64,
     ) -> Result<u64, PredictXError> {
+        extend_instance_ttl(&env);
         matches::create_match(&env, admin, home_team, away_team, league, venue, kickoff_time)
     }
 
@@ -477,10 +506,12 @@ impl PredictionMarket {
         league: Option<String>, venue: Option<String>,
         kickoff_time: Option<u64>,
     ) -> Result<Match, PredictXError> {
+        extend_instance_ttl(&env);
         matches::update_match(&env, admin, match_id, home_team, away_team, league, venue, kickoff_time)
     }
 
     pub fn finish_match(env: Env, admin: Address, match_id: u64) -> Result<(), PredictXError> {
+        extend_instance_ttl(&env);
         matches::finish_match(&env, admin, match_id)
     }
 
@@ -504,6 +535,7 @@ impl PredictionMarket {
         poll_id: u64,
         outcome: bool,
     ) -> Result<(), PredictXError> {
+        extend_instance_ttl(&env);
         payouts::resolve_poll(&env, admin, poll_id, outcome)
     }
 
@@ -517,6 +549,7 @@ impl PredictionMarket {
         claimant: Address,
         poll_id: u64,
     ) -> Result<i128, PredictXError> {
+        extend_instance_ttl(&env);
         payouts::claim_winnings(&env, claimant, poll_id)
     }
 
@@ -525,6 +558,7 @@ impl PredictionMarket {
         poll_id: u64,
         user: Address,
     ) -> Result<i128, PredictXError> {
+        extend_instance_ttl(&env);
         payouts::calculate_winnings(&env, poll_id, user)
     }
 }
