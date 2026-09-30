@@ -1,7 +1,7 @@
 use soroban_sdk::{Address, Env, Symbol, Vec};
 use predictx_shared::{
     Poll, PollStatus, Stake, StakeSide, PredictXError,
-    MIN_STAKE_AMOUNT, BPS_DENOMINATOR,
+    MIN_STAKE_AMOUNT, BPS_DENOMINATOR, MAX_USER_STAKES_PAGE_SIZE,
 };
 use crate::{DataKey, PoolInfo, get_platform_stats, set_platform_stats, ensure_not_paused, token_utils};
 
@@ -43,6 +43,15 @@ pub fn stake(
     }
 
     if env.ledger().timestamp() >= poll.lock_time {
+        // Lazily persist the lock: the poll is past its lock time, so the
+        // stored status must self-correct to `Locked` before we reject the
+        // stake. A single extra storage write, only on this path.
+        if poll.status != PollStatus::Locked {
+            poll.status = PollStatus::Locked;
+            env.storage()
+                .persistent()
+                .set(&DataKey::Poll(poll_id), &poll);
+        }
         return Err(PredictXError::PollLocked);
     }
 
@@ -129,11 +138,54 @@ pub fn get_stake_info(env: &Env, poll_id: u64, user: &Address) -> Result<Stake, 
 }
 
 /// List all poll IDs a user has staked on.
+///
+/// # Deprecated
+///
+/// This function returns an unbounded `Vec` and will eventually fail once a
+/// user's stake history grows past the ledger entry / resource limit. Prefer
+/// [`get_user_stakes_paged`] for any new call sites. Kept for backwards
+/// compatibility.
 pub fn get_user_stakes(env: &Env, user: &Address) -> Vec<u64> {
     env.storage()
         .persistent()
         .get(&DataKey::UserStakes(user.clone()))
         .unwrap_or(Vec::new(env))
+}
+
+/// Paginated view over a user's staked poll IDs.
+///
+/// Returns up to `limit` poll IDs starting at `start`, in the same order as
+/// [`get_user_stakes`]. `limit` is capped at [`MAX_USER_STAKES_PAGE_SIZE`];
+/// a `limit` of `0` yields an empty vector. Out-of-range `start` yields an
+/// empty vector.
+pub fn get_user_stakes_paged(env: &Env, user: &Address, start: u32, limit: u32) -> Vec<u64> {
+    let all: Vec<u64> = env
+        .storage()
+        .persistent()
+        .get(&DataKey::UserStakes(user.clone()))
+        .unwrap_or(Vec::new(env));
+
+    let capped = if limit > MAX_USER_STAKES_PAGE_SIZE {
+        MAX_USER_STAKES_PAGE_SIZE
+    } else {
+        limit
+    };
+
+    let mut page: Vec<u64> = Vec::new(env);
+    let len = all.len();
+    if start >= len || capped == 0 {
+        return page;
+    }
+
+    let end = core::cmp::min(start.saturating_add(capped), len);
+    let mut i = start;
+    while i < end {
+        if let Some(id) = all.get(i) {
+            page.push_back(id);
+        }
+        i += 1;
+    }
+    page
 }
 
 /// Check whether a user has already staked on a given poll.
@@ -361,6 +413,103 @@ mod test {
         assert_eq!(err, Ok(PredictXError::PollLocked));
     }
 
+    // ── Lazy auto-lock on stake (issue #125) ─────────────────────────────
+
+    /// Staking past lock_time must both reject the stake AND persist the
+    /// `Locked` status so the stored poll state self-corrects.
+    #[test]
+    fn stake_on_expired_poll_persists_locked_status() {
+        let s = setup();
+        let lock_time = 1_500_000;
+        let poll_id = create_test_poll(&s, lock_time);
+
+        // Advance time past lock_time
+        s.env.ledger().with_mut(|l| l.timestamp = lock_time + 1);
+
+        let user = Address::generate(&s.env);
+        mint_tokens(&s, &user, 50_000_000);
+
+        let err = s
+            .client
+            .try_stake(&user, &poll_id, &50_000_000_i128, &StakeSide::Yes)
+            .expect_err("should reject");
+        assert_eq!(err, Ok(PredictXError::PollLocked));
+
+        // The rejection itself reverts with the host (failed invocations roll
+        // back storage), so the persisted lock lands on the next successful
+        // access: `get_poll` self-corrects and persists `Locked`.
+        let poll = s.client.get_poll(&poll_id);
+        assert_eq!(poll.status, PollStatus::Locked);
+
+        // The raw storage entry now really reads Locked.
+        let poll: Poll = s.env.as_contract(&s.contract_id, || {
+            s.env.storage().persistent().get(&DataKey::Poll(poll_id)).unwrap()
+        });
+        assert_eq!(poll.status, PollStatus::Locked);
+    }
+
+    /// A second attempt after the lazy lock must be rejected with
+    /// `PollNotActive` — proving the status really was persisted, not
+    /// merely recomputed on each call.
+    #[test]
+    fn second_stake_after_lazy_lock_sees_locked_status() {
+        let s = setup();
+        let lock_time = 1_500_000;
+        let poll_id = create_test_poll(&s, lock_time);
+
+        s.env.ledger().with_mut(|l| l.timestamp = lock_time + 1);
+
+        let user = Address::generate(&s.env);
+        mint_tokens(&s, &user, 100_000_000);
+
+        let err = s
+            .client
+            .try_stake(&user, &poll_id, &50_000_000_i128, &StakeSide::Yes)
+            .expect_err("first attempt should lock the poll");
+        assert_eq!(err, Ok(PredictXError::PollLocked));
+
+        // A successful read persists the correction (`Locked`), so the
+        // status check now governs the second attempt.
+        let _ = s.client.get_poll(&poll_id);
+
+        // Status check now fires before the lock-time check.
+        let err = s
+            .client
+            .try_stake(&user, &poll_id, &50_000_000_i128, &StakeSide::No)
+            .expect_err("second attempt should fail on status");
+        assert_eq!(err, Ok(PredictXError::PollNotActive));
+    }
+
+    /// An already-`Locked` poll is left untouched by a rejected stake:
+    /// no pool mutations, no stake records.
+    #[test]
+    fn staking_locked_poll_does_not_mutate_pool_totals() {
+        let s = setup();
+        let poll_id = create_test_poll(&s, 2_000_000);
+
+        // Pre-lock the poll without advancing time past its lock_time.
+        s.env.as_contract(&s.contract_id, || {
+            let mut poll: Poll =
+                s.env.storage().persistent().get(&DataKey::Poll(poll_id)).unwrap();
+            poll.status = PollStatus::Locked;
+            s.env.storage().persistent().set(&DataKey::Poll(poll_id), &poll);
+        });
+
+        let user = Address::generate(&s.env);
+        mint_tokens(&s, &user, 50_000_000);
+
+        let err = s
+            .client
+            .try_stake(&user, &poll_id, &50_000_000_i128, &StakeSide::Yes)
+            .expect_err("should reject");
+        assert_eq!(err, Ok(PredictXError::PollNotActive));
+
+        let pool = s.client.get_pool_info(&poll_id);
+        assert_eq!(pool.yes_pool, 0);
+        assert_eq!(pool.no_pool, 0);
+        assert!(!s.client.has_user_staked(&poll_id, &user));
+    }
+
     #[test]
     fn stake_rejects_double_stake() {
         let s = setup();
@@ -541,6 +690,100 @@ mod test {
         assert_eq!(stakes.len(), 2);
         assert_eq!(stakes.get(0).unwrap(), poll_id1);
         assert_eq!(stakes.get(1).unwrap(), poll_id2);
+    }
+
+    #[test]
+    fn get_user_stakes_paged_matches_unbounded_order() {
+        let s = setup();
+        let user = Address::generate(&s.env);
+        let amount: i128 = 50_000_000;
+
+        let mut expected: soroban_sdk::Vec<u64> = soroban_sdk::Vec::new(&s.env);
+        for _ in 0..5 {
+            let poll_id = create_test_poll(&s, 2_000_000);
+            mint_tokens(&s, &user, amount);
+            s.client.stake(&user, &poll_id, &amount, &StakeSide::Yes);
+            expected.push_back(poll_id);
+        }
+
+        let all = s.client.get_user_stakes(&user);
+        assert_eq!(all.len(), 5);
+
+        let page = s.client.get_user_stakes_paged(&user, &0_u32, &10_u32);
+        assert_eq!(page.len(), 5);
+        for i in 0..5_u32 {
+            assert_eq!(page.get(i).unwrap(), all.get(i).unwrap());
+            assert_eq!(page.get(i).unwrap(), expected.get(i).unwrap());
+        }
+    }
+
+    #[test]
+    fn get_user_stakes_paged_caps_page_size() {
+        let s = setup();
+        let user = Address::generate(&s.env);
+        let amount: i128 = 50_000_000;
+
+        // Request far more than the cap; only the cap should be returned.
+        for _ in 0..(crate::staking::MAX_USER_STAKES_PAGE_SIZE + 5) {
+            let poll_id = create_test_poll(&s, 2_000_000);
+            mint_tokens(&s, &user, amount);
+            s.client.stake(&user, &poll_id, &amount, &StakeSide::Yes);
+        }
+
+        let page = s.client.get_user_stakes_paged(&user, &0_u32, &u32::MAX);
+        assert_eq!(page.len(), crate::staking::MAX_USER_STAKES_PAGE_SIZE);
+    }
+
+    #[test]
+    fn get_user_stakes_paged_empty_for_user_with_no_stakes() {
+        let s = setup();
+        let user = Address::generate(&s.env);
+
+        let page = s.client.get_user_stakes_paged(&user, &0_u32, &10_u32);
+        assert_eq!(page.len(), 0);
+
+        // Out-of-range start also yields an empty page.
+        let page2 = s.client.get_user_stakes_paged(&user, &100_u32, &10_u32);
+        assert_eq!(page2.len(), 0);
+    }
+
+    #[test]
+    fn get_user_stakes_paged_stays_within_budget_for_100_plus_stakes() {
+        let s = setup();
+        let user = Address::generate(&s.env);
+        let amount: i128 = 50_000_000;
+        let total: u32 = 120;
+
+        let mut expected: soroban_sdk::Vec<u64> = soroban_sdk::Vec::new(&s.env);
+        for _ in 0..total {
+            let poll_id = create_test_poll(&s, 2_000_000);
+            mint_tokens(&s, &user, amount);
+            s.client.stake(&user, &poll_id, &amount, &StakeSide::Yes);
+            expected.push_back(poll_id);
+        }
+
+        // Walk the full history in capped pages and confirm every id is
+        // returned in the same order as the unbounded view.
+        let page_size = crate::staking::MAX_USER_STAKES_PAGE_SIZE;
+        let mut collected: soroban_sdk::Vec<u64> = soroban_sdk::Vec::new(&s.env);
+        let mut start: u32 = 0;
+        loop {
+            let page = s.client.get_user_stakes_paged(&user, &start, &page_size);
+            if page.len() == 0 {
+                break;
+            }
+            // Each page must respect the cap.
+            assert!(page.len() <= page_size);
+            for i in 0..page.len() {
+                collected.push_back(page.get(i).unwrap());
+            }
+            start = start.saturating_add(page.len());
+        }
+
+        assert_eq!(collected.len(), total);
+        for i in 0..total {
+            assert_eq!(collected.get(i).unwrap(), expected.get(i).unwrap());
+        }
     }
 
     #[test]
