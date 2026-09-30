@@ -1,4 +1,4 @@
-use crate::DataKey;
+use predictx_shared::DataKey;
 use predictx_shared::{PredictXError, VoteChoice, VoteTally};
 use soroban_sdk::{Address, Env, Vec};
 
