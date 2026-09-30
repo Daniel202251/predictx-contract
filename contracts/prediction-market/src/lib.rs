@@ -88,6 +88,7 @@ pub struct PredictionMarket;
 pub enum DataKey {
     // ── oracle / admin keys ───────────────────────────────────────────────────
     Admin,
+    PendingAdmin,
     VotingOracle,
     Paused,
     TokenAddress,
@@ -202,6 +203,56 @@ impl PredictionMarket {
         env.storage().instance().set(&DataKey::NextMatchId, &1u64);
         env.storage().instance().set(&DataKey::NextPollId, &1u64);
         env.storage().instance().set(&DataKey::Initialized, &true);
+        Ok(())
+    }
+
+    /// Propose a new admin. The proposal does not change the active admin
+    /// until the candidate calls `accept_admin`. Only the current admin may
+    /// propose, and a new proposal overwrites any pending one.
+    pub fn propose_admin(
+        env: Env,
+        current: Address,
+        candidate: Address,
+    ) -> Result<(), PredictXError> {
+        let stored_admin = get_admin(&env)?;
+        if current != stored_admin {
+            return Err(PredictXError::Unauthorized);
+        }
+        current.require_auth();
+        env.storage().instance().set(&DataKey::PendingAdmin, &candidate);
+        env.events()
+            .publish((Symbol::new(&env, "AdminProposed"),), candidate);
+        Ok(())
+    }
+
+    /// Cancel a pending admin proposal. Only the current admin may cancel.
+    pub fn cancel_admin_proposal(env: Env, current: Address) -> Result<(), PredictXError> {
+        let stored_admin = get_admin(&env)?;
+        if current != stored_admin {
+            return Err(PredictXError::Unauthorized);
+        }
+        current.require_auth();
+        env.storage().instance().remove(&DataKey::PendingAdmin);
+        Ok(())
+    }
+
+    /// Accept a pending admin proposal. Only the proposed candidate may call
+    /// this, and it completes the handover: the candidate becomes the active
+    /// admin and the previous admin loses access.
+    pub fn accept_admin(env: Env, candidate: Address) -> Result<(), PredictXError> {
+        let pending: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::PendingAdmin)
+            .ok_or(PredictXError::Unauthorized)?;
+        if candidate != pending {
+            return Err(PredictXError::Unauthorized);
+        }
+        candidate.require_auth();
+        env.storage().instance().set(&DataKey::Admin, &candidate);
+        env.storage().instance().remove(&DataKey::PendingAdmin);
+        env.events()
+            .publish((Symbol::new(&env, "AdminTransferred"),), candidate);
         Ok(())
     }
 
@@ -911,6 +962,45 @@ mod test {
         assert_eq!(err, Ok(PredictXError::PollAlreadyResolved));
     }
 
+    #[test]
+    fn propose_admin_does_not_change_active_admin() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register(PredictionMarket, ());
+        let client = PredictionMarketClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+        let oracle = Address::generate(&env);
+        let tok = Address::generate(&env);
+        let treasury = Address::generate(&env);
+        client.initialize(&admin, &oracle, &tok, &treasury, &TEST_FEE_BPS);
+        let candidate = Address::generate(&env);
+        client.propose_admin(&admin, &candidate);
+        assert_eq!(client.admin(), admin);
+    }
+
+    #[test]
+    fn accept_admin_only_callable_by_candidate() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register(PredictionMarket, ());
+        let client = PredictionMarketClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+        let oracle = Address::generate(&env);
+        let tok = Address::generate(&env);
+        let treasury = Address::generate(&env);
+        client.initialize(&admin, &oracle, &tok, &treasury, &TEST_FEE_BPS);
+        let candidate = Address::generate(&env);
+        let stranger = Address::generate(&env);
+        client.propose_admin(&admin, &candidate);
+        let err = client
+            .try_accept_admin(&stranger)
+            .expect_err("stranger cannot accept");
+        assert_eq!(err, Ok(PredictXError::Unauthorized));
+        assert_eq!(client.admin(), admin);
+    }
+
+    #[test]
+    fn proposal_can_be_overwritten_or_cancelled() {
     // ── transition_status state machine (issue #123) ──────────────────────────
 
     fn poll_with_status(env: &Env, status: PollStatus) -> Poll {
@@ -1023,6 +1113,24 @@ mod test {
         let tok = Address::generate(&env);
         let treasury = Address::generate(&env);
         client.initialize(&admin, &oracle, &tok, &treasury, &TEST_FEE_BPS);
+        let first = Address::generate(&env);
+        let second = Address::generate(&env);
+        client.propose_admin(&admin, &first);
+        client.propose_admin(&admin, &second);
+        let err = client
+            .try_accept_admin(&first)
+            .expect_err("overwritten proposal");
+        assert_eq!(err, Ok(PredictXError::Unauthorized));
+        client.cancel_admin_proposal(&admin);
+        let err = client
+            .try_accept_admin(&second)
+            .expect_err("cancelled proposal");
+        assert_eq!(err, Ok(PredictXError::Unauthorized));
+        assert_eq!(client.admin(), admin);
+    }
+
+    #[test]
+    fn accept_admin_transfers_ownership_and_old_admin_loses_access() {
         seed_active_poll(&env, &contract_id, 4, &admin);
 
         // Active -> Resolved is not part of the legal graph.
@@ -1043,6 +1151,16 @@ mod test {
         let tok = Address::generate(&env);
         let treasury = Address::generate(&env);
         client.initialize(&admin, &oracle, &tok, &treasury, &TEST_FEE_BPS);
+        let candidate = Address::generate(&env);
+        client.propose_admin(&admin, &candidate);
+        client.accept_admin(&candidate);
+        assert_eq!(client.admin(), candidate);
+        let err = client
+            .try_pause(&admin)
+            .expect_err("old admin should lose access");
+        assert_eq!(err, Ok(PredictXError::Unauthorized));
+        client.pause(&candidate);
+        assert_eq!(client.is_paused(), true);
         seed_active_poll(&env, &contract_id, 9, &admin);
 
         force_poll_status(&env, &contract_id, 9, PollStatus::Locked);
